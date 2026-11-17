@@ -4,143 +4,338 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Coping with Caffeine (CWC) Addon</title>
-<meta name="description" content="Coping with Caffeine (CWC) is a private guild addon for World of Warcraft: a shared roster, professions at a glance, and Kill on Sight and blacklist requests.">
+<meta name="description" content="Coping with Caffeine (CWC) is the guild's own WoW: Forever addon: a shared roster, professions at a glance, Kill on Sight and blacklist alerts.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #0d0b0a;
+    --bg-2: #131010;
     --panel: #171310;
-    --panel-hi: #211b16;
+    --panel-hi: #221b15;
     --line: #56422a;
+    --line-soft: rgba(216, 166, 107, 0.18);
     --gold: #d8a66b;
-    --cream: #e6e6ea;
-    --muted: #a8a8a8;
-  }
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) { --bg: #0d0b0a; }
+    --gold-hi: #f0c38a;
+    --cream: #e8e6e6;
+    --muted: #a7a19a;
+    --red: #e0473b;
+    --amber: #f0a040;
+    --green: #7fd07f;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
+  html { scroll-behavior: smooth; }
   body {
     background: var(--bg);
     color: var(--cream);
     font-family: "Barlow", system-ui, sans-serif;
     font-size: 17px;
     line-height: 1.6;
+    overflow-x: hidden;
   }
   a { color: var(--gold); }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  img { display: block; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
   h1, h2, h3 { font-family: "Cinzel", serif; font-weight: 700; color: var(--gold); margin: 0; }
-  h2 { font-size: 30px; margin-bottom: 14px; }
-  h3 { font-size: 19px; margin-bottom: 8px; }
   p { margin: 0 0 14px; }
+  code {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.92em;
+    background: rgba(216, 166, 107, 0.1);
+    border: 1px solid var(--line-soft);
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: var(--gold-hi);
+  }
 
-  header.hero {
-    position: relative;
-    min-height: 520px;
+  /* Section headings with a gold ornament underneath */
+  .eyebrow {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.85;
+    margin-bottom: 8px;
+  }
+  h2 { font-size: 32px; line-height: 1.2; }
+  .ornament {
     display: flex;
     align-items: center;
-    background: linear-gradient(180deg, rgba(13,11,10,0.35), rgba(13,11,10,0.95)), url("https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/banner.jpg") center / cover no-repeat;
+    gap: 10px;
+    margin: 14px 0 26px;
+    color: var(--gold);
+  }
+  .ornament::before, .ornament::after {
+    content: "";
+    height: 1px;
+    width: 64px;
+    background: linear-gradient(90deg, transparent, var(--gold));
+  }
+  .ornament::after { background: linear-gradient(90deg, var(--gold), transparent); }
+  .ornament span { width: 8px; height: 8px; transform: rotate(45deg); border: 1px solid var(--gold); }
+  .center { text-align: center; }
+  .center .ornament { justify-content: center; }
+
+  /* Hero */
+  header.hero {
+    position: relative;
+    min-height: 600px;
+    display: flex;
+    align-items: center;
+    background:
+      radial-gradient(ellipse at 50% 120%, rgba(216, 166, 107, 0.18), transparent 60%),
+      linear-gradient(180deg, rgba(13, 11, 10, 0.25), rgba(13, 11, 10, 0.97)),
+      url("https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/banner.jpg") center / cover no-repeat;
     border-bottom: 1px solid var(--line);
   }
-  .hero .wrap { text-align: center; padding-top: 56px; padding-bottom: 56px; }
-  .hero img.logo { width: 120px; height: 120px; object-fit: contain; filter: drop-shadow(0 4px 14px rgba(0,0,0,0.6)); }
-  .hero h1 { font-size: 46px; margin-top: 12px; letter-spacing: 0.5px; }
-  .hero .tag { font-size: 19px; color: var(--cream); max-width: 640px; margin: 14px auto 28px; }
-  .btn {
-    display: inline-block;
-    padding: 14px 30px;
-    background: var(--gold);
-    color: #140f0a;
-    font-family: "Barlow", sans-serif;
-    font-weight: 700;
-    font-size: 17px;
-    text-decoration: none;
-    border-radius: 3px;
-    border: 1px solid var(--gold);
-    transition: background 0.15s, transform 0.15s;
+  .hero .wrap { text-align: center; padding-top: 64px; padding-bottom: 64px; }
+  .hero img.logo {
+    width: 132px; height: 132px; object-fit: contain; margin: 0 auto;
+    filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.7));
   }
-  .btn:hover { background: #ebb97e; transform: translateY(-1px); }
-  .btn.ghost { background: transparent; color: var(--gold); }
-  .btn.ghost:hover { background: rgba(216,166,107,0.12); }
-  .meta { margin-top: 14px; color: var(--muted); font-size: 14px; }
+  .hero h1 { font-size: 50px; margin-top: 14px; letter-spacing: 0.5px; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6); }
+  .hero .tag { font-size: 19px; max-width: 660px; margin: 14px auto 30px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 30px;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold));
+    color: #1a120a;
+    font-weight: 700; font-size: 17px;
+    text-decoration: none;
+    border-radius: 4px;
+    border: 1px solid var(--gold-hi);
+    box-shadow: 0 6px 24px rgba(216, 166, 107, 0.25);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(216, 166, 107, 0.35); }
+  .btn svg { width: 18px; height: 18px; }
+  .meta { margin-top: 16px; color: var(--muted); font-size: 14px; }
+  .hero-icons { display: flex; justify-content: center; gap: 8px; margin-top: 34px; flex-wrap: wrap; }
+  .hero-icons img {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid var(--line); background: #000;
+    opacity: 0.85;
+  }
 
-  section { padding: 64px 0; border-bottom: 1px solid var(--line); }
-  section:last-of-type { border-bottom: 0; }
-  .lede { max-width: 760px; color: var(--cream); }
+  section { padding: 76px 0; position: relative; }
+  section.alt {
+    background:
+      linear-gradient(180deg, rgba(216, 166, 107, 0.035), transparent 40%),
+      var(--bg-2);
+    border-top: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .lede { max-width: 640px; color: var(--cream); }
+  .muted { color: var(--muted); }
 
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px; }
+  /* About: text beside a recreated CWC roster window */
+  .about-grid { display: grid; grid-template-columns: 1fr 1.15fr; gap: 48px; align-items: center; }
+  .pill-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .pill {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.4px;
+    padding: 5px 12px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--gold-hi);
+    background: rgba(216, 166, 107, 0.07);
+  }
+
+  .window {
+    border: 1px solid #6b5230;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #1d1712, #110e0b);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(216, 166, 107, 0.08) inset;
+    overflow: hidden;
+  }
+  .window-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(180deg, rgba(13, 11, 10, 0.2), rgba(13, 11, 10, 0.9)), url("https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/banner.jpg") center 30% / cover;
+    border-bottom: 1px solid var(--line);
+  }
+  .window-head img { width: 34px; height: 34px; object-fit: contain; }
+  .window-head b { font-family: "Cinzel", serif; color: var(--gold); font-size: 16px; }
+  .window-head small { color: var(--muted); font-size: 11px; margin-left: 6px; }
+  .roster { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .roster th {
+    text-align: left; font-size: 10px; letter-spacing: 1.2px; color: var(--muted);
+    padding: 10px 10px 8px; border-bottom: 1px solid var(--line-soft);
+  }
+  .roster td { padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); white-space: nowrap; }
+  .roster tr.sel td { background: rgba(216, 166, 107, 0.08); }
+  .roster tr.sel td:first-child { box-shadow: 3px 0 0 var(--gold) inset; }
+  .who { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .who img { width: 22px; height: 22px; border-radius: 3px; }
+  .icons { display: flex; gap: 3px; }
+  .icons img { width: 18px; height: 18px; border-radius: 2px; }
+  .race { display: flex; align-items: center; gap: 6px; }
+  .race img { width: 16px; height: 16px; border-radius: 2px; }
+  .main { color: var(--gold); font-weight: 700; }
+  .c-hunter { color: #aad372; } .c-mage { color: #3fc7eb; } .c-priest { color: #ffffff; }
+  .c-warrior { color: #c69b6d; } .c-druid { color: #ff7c0a; }
+  .window-foot { padding: 8px 12px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line-soft); }
+  .caption { font-size: 13px; color: var(--muted); text-align: center; margin-top: 12px; }
+
+  /* Feature cards with icon badges */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 18px; }
   .card {
+    position: relative;
     background: linear-gradient(180deg, var(--panel-hi), var(--panel));
     border: 1px solid var(--line);
-    border-radius: 4px;
-    padding: 22px;
+    border-radius: 6px;
+    padding: 24px 22px 22px;
+    transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+    overflow: hidden;
   }
+  .card::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0.55;
+  }
+  .card:hover { transform: translateY(-3px); border-color: #8a6a3e; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45); }
+  .badge {
+    width: 52px; height: 52px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: radial-gradient(circle at 35% 30%, #3a2c1c, #140f0b);
+    border: 2px solid var(--gold);
+    box-shadow: 0 0 0 4px rgba(216, 166, 107, 0.08), 0 6px 16px rgba(0, 0, 0, 0.5);
+    margin-bottom: 16px;
+    color: var(--gold-hi);
+  }
+  .badge img { width: 34px; height: 34px; border-radius: 50%; }
+  .badge svg { width: 24px; height: 24px; }
+  .badge.red { border-color: var(--red); color: #ff8a80; box-shadow: 0 0 0 4px rgba(224, 71, 59, 0.1), 0 6px 16px rgba(0, 0, 0, 0.5); }
+  .badge.amber { border-color: var(--amber); color: #ffc680; box-shadow: 0 0 0 4px rgba(240, 160, 64, 0.1), 0 6px 16px rgba(0, 0, 0, 0.5); }
+  .card h3 { font-size: 19px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .card p { color: var(--muted); margin: 0; font-size: 15px; }
+  .tag-preview {
+    font-family: "Barlow", sans-serif; font-size: 11px; letter-spacing: 1.2px; font-weight: 700;
+    border: 1px solid var(--gold); color: var(--gold); padding: 1px 7px; border-radius: 3px;
+  }
 
-  .steps { counter-reset: step; list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 14px; }
+  /* Icon band */
+  .band { text-align: center; }
+  .band-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin: 22px 0 6px; }
+  .band-row img {
+    width: 52px; height: 52px; border-radius: 8px;
+    border: 1px solid var(--line);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+    transition: transform 0.15s;
+  }
+  .band-row img:hover { transform: translateY(-3px) scale(1.06); }
+  .band-label { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+
+  /* Alerts showcase */
+  .alerts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+  .alert {
+    display: flex; gap: 16px; align-items: center;
+    padding: 16px 18px; border-radius: 6px; margin-bottom: 16px;
+    border: 2px solid var(--red);
+    background: linear-gradient(180deg, #2b0907, #1a0605);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 30px rgba(224, 71, 59, 0.15);
+  }
+  .alert.amber {
+    border-color: var(--amber);
+    background: linear-gradient(180deg, #2b1a07, #1a0f04);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 30px rgba(240, 160, 64, 0.15);
+  }
+  .alert .crest {
+    flex: 0 0 auto; width: 54px; height: 54px; border-radius: 50%;
+    display: grid; place-items: center; font-family: "Cinzel", serif; font-weight: 700; font-size: 22px;
+    background: radial-gradient(circle at 35% 30%, #5a1510, #200605); color: #ff8a80; border: 2px solid var(--red);
+  }
+  .alert.amber .crest { background: radial-gradient(circle at 35% 30%, #5a3a10, #201205); color: #ffc680; border-color: var(--amber); }
+  .alert b { font-family: "Cinzel", serif; font-size: 16px; color: #ff6b5e; letter-spacing: 0.5px; }
+  .alert.amber b { color: #ffb050; }
+  .alert .who-line { display: block; color: var(--gold); font-weight: 700; }
+  .alert .why { display: block; color: var(--cream); font-size: 13px; }
+  .checks { list-style: none; padding: 0; margin: 18px 0 0; }
+  .checks li { position: relative; padding-left: 28px; margin-bottom: 10px; color: var(--cream); }
+  .checks li::before {
+    content: ""; position: absolute; left: 2px; top: 8px; width: 12px; height: 7px;
+    border-left: 2px solid var(--gold); border-bottom: 2px solid var(--gold); transform: rotate(-45deg);
+  }
+
+  /* Steps */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; counter-reset: step; list-style: none; padding: 0; margin: 0; position: relative; }
   .steps li {
     counter-increment: step;
-    position: relative;
-    padding: 16px 16px 16px 64px;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: 6px;
+    padding: 58px 20px 20px;
+    position: relative;
   }
   .steps li::before {
     content: counter(step);
-    position: absolute;
-    left: 16px;
-    top: 14px;
-    width: 34px;
-    height: 34px;
-    line-height: 34px;
-    text-align: center;
-    border-radius: 50%;
-    border: 1px solid var(--gold);
-    color: var(--gold);
-    font-family: "Cinzel", serif;
-    font-weight: 700;
+    position: absolute; left: 20px; top: 16px;
+    width: 32px; height: 32px; line-height: 30px; text-align: center;
+    border-radius: 50%; border: 1px solid var(--gold);
+    background: rgba(216, 166, 107, 0.1);
+    color: var(--gold); font-family: "Cinzel", serif; font-weight: 700;
   }
-  .steps li span { color: var(--muted); }
+  .steps strong { display: block; color: var(--cream); margin-bottom: 4px; }
+  .steps span { color: var(--muted); font-size: 15px; }
 
+  .path {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 22px 0 0; padding: 14px 16px;
+    background: #0a0807; border: 1px solid var(--line); border-radius: 6px;
+  }
+  .path code { background: none; border: 0; padding: 0; font-size: 15px; word-break: break-all; }
+  .path button {
+    margin-left: auto; cursor: pointer;
+    background: transparent; color: var(--gold); border: 1px solid var(--gold);
+    border-radius: 4px; padding: 6px 12px; font: 600 13px "Barlow", sans-serif;
+  }
+  .path button:hover { background: rgba(216, 166, 107, 0.12); }
+
+  /* FAQ */
+  .faq { max-width: 860px; margin: 0 auto; }
   details {
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 0 20px;
     margin-bottom: 10px;
+    transition: border-color 0.15s;
   }
+  details[open] { border-color: #8a6a3e; }
   details summary {
-    cursor: pointer;
-    list-style: none;
-    padding: 16px 0;
-    font-weight: 600;
-    color: var(--cream);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    cursor: pointer; list-style: none;
+    padding: 16px 0; font-weight: 600; color: var(--cream);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
   }
   details summary::-webkit-details-marker { display: none; }
-  details summary::after { content: "+"; color: var(--gold); font-size: 22px; }
-  details[open] summary::after { content: "–"; }
+  details summary::after { content: "+"; color: var(--gold); font-size: 22px; line-height: 1; }
+  details[open] summary::after { content: "\2212"; }
   details p { color: var(--muted); padding-bottom: 16px; margin: 0; }
 
-  .download {
+  /* Download call to action */
+  .cta {
     text-align: center;
-    background: radial-gradient(ellipse at center, rgba(216,166,107,0.12), transparent 70%);
+    background:
+      radial-gradient(ellipse at center, rgba(216, 166, 107, 0.16), transparent 65%),
+      linear-gradient(180deg, rgba(13, 11, 10, 0.9), rgba(13, 11, 10, 0.95)),
+      url("https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/banner.jpg") center / cover;
+    border-top: 1px solid var(--line);
   }
-  .download .meta { margin-top: 18px; }
+  .cta img.logo { width: 84px; height: 84px; object-fit: contain; margin: 0 auto 10px; }
 
   footer { padding: 28px 0 40px; color: var(--muted); font-size: 14px; text-align: center; }
 
+  @media (max-width: 880px) {
+    .about-grid, .alerts-grid { grid-template-columns: 1fr; gap: 32px; }
+  }
   @media (max-width: 640px) {
     body { font-size: 16px; }
-    .hero h1 { font-size: 34px; }
+    .hero h1 { font-size: 36px; }
     h2 { font-size: 26px; }
-    section { padding: 48px 0; }
+    section { padding: 54px 0; }
+    .roster .hide-sm { display: none; }
+    .band-row img { width: 42px; height: 42px; }
   }
 </style>
 </head>
@@ -150,148 +345,315 @@
   <div class="wrap">
     <img class="logo" src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/logo.png" alt="Coping with Caffeine logo">
     <h1>Coping with Caffeine</h1>
-    <p class="tag">A private World of Warcraft addon for our guild: a shared roster, professions at a glance, and Kill on Sight and blacklist requests that officers approve together.</p>
-    <a class="btn" href="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/CWC-Addon.zip" download>Download CWC</a>
-    <p class="meta">Test build 0.9.3 · WoW Forever · Retail</p>
+    <p class="tag">The guild's own addon for WoW: Forever. A shared roster, professions at a glance, and Kill on Sight and blacklist alerts that officers approve together.</p>
+    <a class="btn" href="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/CWC-Addon.zip" download>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      Download CWC
+    </a>
+    <p class="meta">Test build 0.9.3 · WoW: Forever · Guild members only</p>
+    <div class="hero-icons" aria-hidden="true">
+      <img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/warrior.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/paladin.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/hunter.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/rogue.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/priest.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/shaman.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/mage.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/warlock.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/druid.png" alt="">
+    </div>
   </div>
 </header>
 
 <section id="about">
-  <div class="wrap">
-    <h2>What is CWC?</h2>
-    <p class="lede">Coping with Caffeine is the guild's own addon. It keeps the roster up to date automatically, so you can see who is online, what they play, which professions they have and who is someone's alt, without asking around.</p>
-    <p class="lede">It is built for the guild only. It is not on a public addon store and it does not talk to any outside server.</p>
+  <div class="wrap about-grid">
+    <div>
+      <span class="eyebrow">The guild addon</span>
+      <h2>What is CWC?</h2>
+      <div class="ornament"><span></span></div>
+      <p class="lede">Coping with Caffeine is the guild's own addon. It keeps the roster up to date automatically, so you can see what everyone plays, which professions they have and whose alt is whose, without asking around.</p>
+      <p class="lede muted">It's built for the guild only. It isn't on a public addon store, it only works for guild members, and it never talks to an outside server.</p>
+      <div class="pill-list">
+        <span class="pill">Live guild roster</span>
+        <span class="pill">Professions</span>
+        <span class="pill">Kill on Sight</span>
+        <span class="pill">Blacklist</span>
+        <span class="pill">Alerts</span>
+      </div>
+    </div>
+    <div>
+      <div class="window" role="img" aria-label="Preview of the CWC roster window with example characters">
+        <div class="window-head">
+          <img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/logo.png" alt="">
+          <b>Coping with Caffeine</b><small>v0.9.3</small>
+        </div>
+        <table class="roster">
+          <thead>
+            <tr><th>CHARACTER</th><th>PROFESSIONS</th><th class="hide-sm">RACE</th><th>LVL</th><th class="hide-sm">EXPERIENCE</th></tr>
+          </thead>
+          <tbody>
+            <tr class="sel">
+              <td><span class="who c-hunter"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/hunter.png" alt="">Hello There</span></td>
+              <td><span class="icons"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/leatherworking.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/skinning.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/cooking.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/first-aid.png" alt=""></span></td>
+              <td class="hide-sm"><span class="race"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/race/human.png" alt="">Human</span></td>
+              <td>48</td><td class="hide-sm main">Master</td>
+            </tr>
+            <tr>
+              <td><span class="who c-mage"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/mage.png" alt="">Brewna Steamtop</span></td>
+              <td><span class="icons"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/tailoring.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/enchanting.png" alt=""></span></td>
+              <td class="hide-sm"><span class="race"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/race/gnome.png" alt="">Gnome</span></td>
+              <td>33</td><td class="hide-sm">Veteran</td>
+            </tr>
+            <tr>
+              <td><span class="who c-druid"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/druid.png" alt="">Lyra Duskwhisper</span></td>
+              <td><span class="icons"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/herbalism.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/alchemy.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/fishing.png" alt=""></span></td>
+              <td class="hide-sm"><span class="race"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/race/night-elf.png" alt="">Night Elf</span></td>
+              <td>56</td><td class="hide-sm">Experienced</td>
+            </tr>
+            <tr>
+              <td><span class="who c-warrior"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/warrior.png" alt="">Thane Ironbrew</span></td>
+              <td><span class="icons"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/mining.png" alt=""><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/blacksmithing.png" alt=""></span></td>
+              <td class="hide-sm"><span class="race"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/race/dwarf.png" alt="">Dwarf</span></td>
+              <td>21</td><td class="hide-sm">Newbie</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="window-foot">Version 0.9.3 · Shares data with online guild mates who have CWC.</div>
+      </div>
+      <p class="caption">A preview of the roster, with example characters.</p>
+    </div>
   </div>
 </section>
 
-<section id="features">
+<section id="features" class="alt">
   <div class="wrap">
-    <h2>What it does</h2>
+    <div class="center">
+      <span class="eyebrow">Features</span>
+      <h2>What it does</h2>
+      <div class="ornament"><span></span></div>
+    </div>
     <div class="grid">
       <div class="card">
+        <div class="badge"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/hunter.png" alt=""></div>
         <h3>Roster</h3>
-        <p>Every character in the guild with race, class, level, item level, guild rank and role. Sort by name, race, level or status, and search by name, class, spec or profession.</p>
+        <p>Every character in the guild with race, class, level, item level, rank, main or alt status and experience. Sort it, search it, and find who you need in seconds.</p>
       </div>
       <div class="card">
+        <div class="badge"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/blacksmithing.png" alt=""></div>
         <h3>Professions at a glance</h3>
-        <p>Profession icons appear beside each name, so you can see who can craft or gather what. Pick a character to see their skill levels.</p>
+        <p>Profession icons sit beside each name, so you can see who can craft or gather what. Pick a character to see their skill levels.</p>
       </div>
       <div class="card">
+        <div class="badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+        </div>
         <h3>Main and alt links</h3>
         <p>Tag each character as a main or an alt. Alts link to their main, so you always know whose alt is whose.</p>
       </div>
       <div class="card">
+        <div class="badge red">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+        </div>
         <h3>Kill on Sight</h3>
-        <p>Members can submit a target with a reason. Officers and the Guild Master approve or deny each request, and the decision reaches everyone who is online. If an approved target comes near you, CWC plays a warning sound and shows a Kill on Sight alert.</p>
+        <p>Anyone can submit a Horde target with a reason, and officers approve or deny it. When an approved target comes near you, CWC sounds a warning and shows an alert.</p>
       </div>
       <div class="card">
+        <div class="badge amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></svg>
+        </div>
         <h3>Player blacklist</h3>
-        <p>The same request and approval process, for players the guild should avoid trading or grouping with. If one of them whispers you, invites you, is in your group, opens a trade or sends you mail, CWC warns you.</p>
+        <p>Scammers, ninja looters and anyone the guild should avoid. If one of them whispers you, invites you, joins your group, trades or mails you, CWC warns you.</p>
       </div>
       <div class="card">
+        <div class="badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        </div>
         <h3>Statistics</h3>
-        <p>Counts of characters, mains and alts, plus the most common classes, races and professions in the guild.</p>
+        <p>Counts of characters, mains and alts, plus the guild's most common classes, races and professions.</p>
       </div>
       <div class="card">
+        <div class="badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
+        </div>
         <h3>Update notices</h3>
-        <p>When a guild mate runs a newer version, CWC tells you in chat, with a popup and in its window, so nobody gets left on an old copy.</p>
+        <p>When a guild mate runs a newer version, CWC tells you in chat, in a popup and in its window, so nobody gets left on an old copy.</p>
       </div>
       <div class="card">
-        <h3>Raid <span style="font-family:Barlow,sans-serif;font-size:12px;letter-spacing:1px;border:1px solid var(--gold);padding:1px 6px;margin-left:6px;vertical-align:middle">PREVIEW</span></h3>
-        <p>A work in progress. When raids become available, you'll be able to mark your interest in raiding with the guild and the roles you can fill.</p>
+        <div class="badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22V4"/><path d="M4 4h13l-2 4 2 4H4"/></svg>
+        </div>
+        <h3>Raid <span class="tag-preview">PREVIEW</span></h3>
+        <p>A work in progress. Once raids are available, you'll be able to mark your interest in raiding with the guild and the roles you can fill.</p>
       </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <span class="eyebrow">Every class, every profession</span>
+    <h2>Built around the whole guild</h2>
+    <div class="ornament" style="justify-content:center"><span></span></div>
+    <div class="band-label">Classes</div>
+    <div class="band-row">
+      <img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/warrior.png" alt="Warrior" title="Warrior"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/paladin.png" alt="Paladin" title="Paladin"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/hunter.png" alt="Hunter" title="Hunter"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/rogue.png" alt="Rogue" title="Rogue"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/priest.png" alt="Priest" title="Priest"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/shaman.png" alt="Shaman" title="Shaman"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/mage.png" alt="Mage" title="Mage"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/warlock.png" alt="Warlock" title="Warlock"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/class/druid.png" alt="Druid" title="Druid">
+    </div>
+    <div class="band-label" style="margin-top:22px">Professions</div>
+    <div class="band-row">
+      <img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/alchemy.png" alt="Alchemy" title="Alchemy"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/blacksmithing.png" alt="Blacksmithing" title="Blacksmithing"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/enchanting.png" alt="Enchanting" title="Enchanting"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/engineering.png" alt="Engineering" title="Engineering"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/herbalism.png" alt="Herbalism" title="Herbalism"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/leatherworking.png" alt="Leatherworking" title="Leatherworking"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/mining.png" alt="Mining" title="Mining"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/skinning.png" alt="Skinning" title="Skinning"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/tailoring.png" alt="Tailoring" title="Tailoring"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/cooking.png" alt="Cooking" title="Cooking"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/fishing.png" alt="Fishing" title="Fishing"><img src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/prof/first-aid.png" alt="First Aid" title="First Aid">
+    </div>
+  </div>
+</section>
+
+<section id="alerts" class="alt">
+  <div class="wrap alerts-grid">
+    <div>
+      <div class="alert" aria-label="Example Kill on Sight alert">
+        <div class="crest">!</div>
+        <div><b>KILL ON SIGHT</b><span class="who-line">John Doe is nearby</span><span class="why">Ganked our lowbies in Westfall.</span></div>
+      </div>
+      <div class="alert amber" aria-label="Example blacklist alert">
+        <div class="crest">!</div>
+        <div><b>BLACKLISTED PLAYER</b><span class="who-line">Jane Roe whispered you</span><span class="why">Scammed a guild member on an enchant.</span></div>
+      </div>
+      <p class="caption">Examples of the alerts, with made-up names.</p>
+    </div>
+    <div>
+      <span class="eyebrow">Stay safe</span>
+      <h2>Alerts that have your back</h2>
+      <div class="ornament"><span></span></div>
+      <p class="lede">Only entries an officer has approved trigger an alert, so a single report can't set them off.</p>
+      <ul class="checks">
+        <li><strong>Kill on Sight:</strong> a short warning sound and a red pop-up when an approved target comes into view.</li>
+        <li><strong>Blacklist:</strong> a warning when a blacklisted player contacts you directly: a whisper, an invite, your group, a trade or mail.</li>
+        <li>Each alert has an on and off switch, and a Test button, in CWC's Settings.</li>
+      </ul>
     </div>
   </div>
 </section>
 
 <section id="how">
   <div class="wrap">
-    <h2>How it works</h2>
-    <p class="lede">When you log in, CWC reads your character and saves it on your computer. When you are online with other guild members who have the addon, you share your characters with each other, and the roster fills in. Nothing is sent to a website or a server.</p>
-    <ul class="steps">
-      <li><strong>Log in on your character.</strong> <span>CWC scans it automatically. A setup screen asks whether it is a main or an alt on first use.</span></li>
-      <li><strong>Stay online with guild mates.</strong> <span>Their characters appear on your roster as soon as you are both online. Characters you have already received stay visible when those players are offline.</span></li>
-      <li><strong>Submit or approve requests.</strong> <span>Anyone can submit a request. Officers and Guild Masters approve or deny it, and everyone online sees the result.</span></li>
-    </ul>
+    <div class="center">
+      <span class="eyebrow">Behind the scenes</span>
+      <h2>How it works</h2>
+      <div class="ornament"><span></span></div>
+      <p class="lede" style="margin:0 auto 34px">When you log in, CWC reads your character and saves it on your computer. When you're online with guild mates who have it, you swap characters, and everyone's roster fills in. Nothing is sent to a website or a server.</p>
+    </div>
+    <ol class="steps">
+      <li><strong>Log in on your character</strong><span>CWC scans it automatically. A quick setup asks whether it's a main or an alt, and how long you've played.</span></li>
+      <li><strong>Be online with guild mates</strong><span>Their characters appear on your roster while you're both online, and stay there when they log off.</span></li>
+      <li><strong>Request, approve, stay alert</strong><span>Anyone can submit a Kill on Sight or blacklist request. Officers decide, and approved entries trigger alerts for everyone.</span></li>
+    </ol>
   </div>
 </section>
 
-<section id="install">
+<section id="install" class="alt">
   <div class="wrap">
-    <h2>Install</h2>
+    <div class="center">
+      <span class="eyebrow">Getting started</span>
+      <h2>Install</h2>
+      <div class="ornament"><span></span></div>
+    </div>
     <ol class="steps">
-      <li><strong>Download the zip.</strong> <span>Use the button at the top of this page.</span></li>
-      <li><strong>Extract the CWC folder</strong> <span>into your WoW addons folder: <code>World of Warcraft\_retail_\Interface\AddOns\</code>. The folder must be named <code>CWC</code>.</span></li>
-      <li><strong>Start the game and enable CWC</strong> <span>on the addon list, then log in. Type <code>/reload</code> if it was already running.</span></li>
-      <li><strong>Find the minimap button</strong> <span>and click it to open the roster. Right-click it for setup.</span></li>
+      <li><strong>Download the zip</strong><span>Use the Download CWC button on this page.</span></li>
+      <li><strong>Extract the CWC folder</strong><span>into your WoW: Forever AddOns folder, shown below. The folder must be called <code>CWC</code>.</span></li>
+      <li><strong>Enable CWC and log in</strong><span>Make sure it's ticked on the addon list. Type <code>/reload</code> if the game was already running.</span></li>
+      <li><strong>Open it</strong><span>Click the CWC minimap button or type <code>/cwc</code>. Right-click the button for setup.</span></li>
     </ol>
-    <p style="margin-top:18px;color:var(--muted);font-size:15px">Updating: close the game, replace the CWC folder with the new one, and start again.</p>
+    <div class="path">
+      <code id="addon-path">World of Warcraft\_forever_\Interface\AddOns\</code>
+      <button type="button" id="copy-path">Copy path</button>
+    </div>
+    <p class="muted" style="margin-top:14px;font-size:15px">Updating: close the game, replace the CWC folder with the new one, and start the game again.</p>
   </div>
 </section>
 
 <section id="faq">
   <div class="wrap">
-    <h2>Frequently asked questions</h2>
-
-    <details>
-      <summary>Can anyone use CWC?</summary>
-      <p>No. CWC is for members of the Coping with Caffeine guild only. It checks your guild when you log in, and if you're not a member it shows a message asking you to contact the Guild Master, Hello There.</p>
-    </details>
-
-    <details>
-      <summary>Is CWC safe to install?</summary>
-      <p>CWC only reads your own character details and shares them with guild members who have the addon. It does not ask for your password, your account details or any payment information, and it does not send anything to a website. The source code is public, so anyone can check it.</p>
-    </details>
-
-    <details>
-      <summary>How will I know when there's an update?</summary>
-      <p>Addons can't check websites, so CWC learns about new versions from guild mates. As soon as anyone online runs a newer version, CWC warns you in chat, shows a popup with the download link and adds a red banner to its window. The warning repeats at every login until you update. If you skip updates, guild sync can stop working and the roster may show missing or wrong data. This works from version 0.8.0 onwards, so anyone on an older version needs to update once by hand.</p>
-    </details>
-
-    <details>
-      <summary>Why can't I see my guild mates' characters yet?</summary>
-      <p>Characters are shared only while you and the other player are both online with the addon. Once you have received someone's characters, they stay on your roster, even when that person is offline. Ask a guild mate to log in while you are online.</p>
-    </details>
-
-    <details>
-      <summary>Does it work with other addons?</summary>
-      <p>Yes. When another addon has loaded LibDBIcon, the shared minimap button system most addons use, CWC's minimap button uses it too. Collector addons such as Minimap Button Button then show it alongside everything else.</p>
-    </details>
-
-    <details>
-      <summary>How do I tag myself as a main or an alt?</summary>
-      <p>Open the setup screen by right-clicking the minimap button, or from the Settings page. Choose main or alt, and for an alt, pick the name of its main.</p>
-    </details>
-
-    <details>
-      <summary>Who can approve a Kill on Sight or blacklist request?</summary>
-      <p>Only Guild Masters and Officers. Requests from anyone else are shown to everyone, but they stay pending until an officer approves or denies them.</p>
-    </details>
-
-    <details>
-      <summary>My character shows the wrong class, race or professions. What do I do?</summary>
-      <p>Log in on that character and use <em>Rescan character</em> on the Settings page. Then open <em>Refresh guild data</em> while your guild mates are online.</p>
-    </details>
-
-    <details>
-      <summary>Where do I report a bug or suggest a change?</summary>
-      <p>Tell an officer or post in the guild's Discord. Please include a screenshot and what you were doing when the problem happened.</p>
-    </details>
+    <div class="center">
+      <span class="eyebrow">Questions</span>
+      <h2>Frequently asked questions</h2>
+      <div class="ornament"><span></span></div>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>Can anyone use CWC?</summary>
+        <p>No. CWC is for members of the Coping with Caffeine guild only. It checks your guild when you log in, and if you're not a member it shows a message asking you to contact the Guild Master, Hello There.</p>
+      </details>
+      <details>
+        <summary>Is CWC safe to install?</summary>
+        <p>CWC only reads your own character details and shares them with guild members who have the addon. It never asks for your password, your account details or any payment information, and it doesn't send anything to a website. The source code is public, so anyone can check it.</p>
+      </details>
+      <details>
+        <summary>How will I know when there's an update?</summary>
+        <p>Addons can't check websites, so CWC learns about new versions from guild mates. As soon as anyone online runs a newer version, CWC warns you in chat, shows a popup with the download link and adds a red banner to its window. The warning repeats at every login until you update. If you skip updates, guild sync can stop working and the roster may show missing or wrong data. This works from version 0.8.0 onwards, so anyone on an older version needs to update once by hand.</p>
+      </details>
+      <details>
+        <summary>Why can't I see my guild mates' characters yet?</summary>
+        <p>Characters are shared only while you and the other player are both online with the addon. Once you've received someone's characters, they stay on your roster, even when that person is offline. Ask a guild mate to log in while you're online.</p>
+      </details>
+      <details>
+        <summary>Why didn't a Kill on Sight alert go off?</summary>
+        <p>Only approved entries trigger alerts. CWC spots Kill on Sight targets from their nameplate, so keep enemy nameplates switched on (V by default). Nameplates show players within about 40 yards. Targeting or mousing over a target also triggers the alert.</p>
+      </details>
+      <details>
+        <summary>Does it work with other addons?</summary>
+        <p>Yes. When another addon has loaded LibDBIcon, the shared minimap button system most addons use, CWC's minimap button uses it too. Collector addons such as Minimap Button Button then show it alongside everything else.</p>
+      </details>
+      <details>
+        <summary>How do I tag myself as a main or an alt?</summary>
+        <p>Open the setup screen by right-clicking the minimap button, or from the Settings page. Choose main or alt, and for an alt, enter your main's first and last name.</p>
+      </details>
+      <details>
+        <summary>Who can approve or remove a Kill on Sight or blacklist entry?</summary>
+        <p>The Guild Master and Officers. Requests from anyone else are shown to everyone, but they stay pending until an officer approves or denies them. Officers can also remove approved entries.</p>
+      </details>
+      <details>
+        <summary>My character shows the wrong class, race or professions. What do I do?</summary>
+        <p>Log in on that character and use <em>Rescan character</em> on the Settings page, then <em>Refresh guild data</em> while your guild mates are online. For First Aid, open your Professions window once and CWC will pick it up.</p>
+      </details>
+      <details>
+        <summary>Where do I report a bug or suggest a change?</summary>
+        <p>Tell an officer or post in the guild's Discord. Please include a screenshot and what you were doing when the problem happened.</p>
+      </details>
+    </div>
   </div>
 </section>
 
-<section class="download" id="download">
+<section class="cta" id="download">
   <div class="wrap">
+    <img class="logo" src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/logo.png" alt="">
     <h2>Ready to install?</h2>
-    <p class="lede" style="margin:0 auto 24px">Download the latest test build and join the guild's roster.</p>
-    <a class="btn" href="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/CWC-Addon.zip" download>Download CWC</a>
-    <p class="meta">Version 0.9.3 · Zip file · Extract to Interface\AddOns</p>
+    <div class="ornament" style="justify-content:center"><span></span></div>
+    <p class="lede" style="margin:0 auto 26px">Download the latest test build and join the guild's roster.</p>
+    <a class="btn" href="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/CWC-Addon.zip" download>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      Download CWC
+    </a>
+    <p class="meta">Version 0.9.3 · Zip file · Extract to World of Warcraft\_forever_\Interface\AddOns</p>
   </div>
 </section>
 
 <footer>
-  <div class="wrap">Coping with Caffeine · WoW Forever · Built for the guild, not for sale.</div>
+  <div class="wrap">Coping with Caffeine · WoW: Forever · Built for the guild, not for sale.</div>
 </footer>
 
+<script>
+  (function () {
+    var btn = document.getElementById("copy-path");
+    var path = document.getElementById("addon-path");
+    if (!btn || !path) return;
+    btn.addEventListener("click", function () {
+      var text = path.textContent;
+      function done() {
+        btn.textContent = "Copied";
+        setTimeout(function () { btn.textContent = "Copy path"; }, 1600);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () {});
+      } else {
+        var r = document.createRange();
+        r.selectNodeContents(path);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+        try { document.execCommand("copy"); done(); } catch (e) {}
+      }
+    });
+  })();
+</script>
 </body>
 </html>
