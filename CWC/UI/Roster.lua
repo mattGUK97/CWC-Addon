@@ -15,7 +15,29 @@ local COLS = {
   { key = "level", label = "Lvl", x = 444, w = 40 },
   { key = "status", label = "Status", x = 484, w = 0 },
 }
-local CARD_KEYS = { "LEVEL", "ITEM LEVEL", "SPEC", "GUILD", "RANK", "ROLE", "STATUS" }
+local CARD_KEYS = { "LEVEL", "ITEM LEVEL", "SPEC", "GUILD", "RANK", "ROLE", "STATUS", "EXPERIENCE" }
+
+-- A race or class is only shown when it is real text. Anything missing reads "Unknown", never a number or "?".
+local function knownText(v)
+  return type(v) == "string" and v ~= "" and not string.find(v, "^%s*[%d%.%-]+%s*$")
+end
+local function raceText(rec)
+  return knownText(rec.race) and rec.race or "Unknown"
+end
+local function setIcon(tex, path)
+  if path and path ~= T.fallbackIcon then
+    tex:SetTexture(path)
+    tex:Show()
+  else
+    tex:Hide()
+  end
+end
+-- Experience is set once per player, so this computer's own characters use the account setting.
+local function experienceOf(rec)
+  if rec.experience then return rec.experience end
+  if CWC_Characters and rec.name and CWC_Characters[rec.name] then return CWC_Account.experience end
+  return nil
+end
 local PROF_ROWS = 8
 
 local page, scroll, child, searchBox, placeholder, countText, emptyText, card
@@ -114,10 +136,10 @@ local function showTooltip(row)
   GameTooltip:SetOwner(row, "ANCHOR_CURSOR")
   local r, g, b = T.ClassColour(rec.classFile)
   GameTooltip:AddLine(rec.name or "?", r, g, b)
-  local line = (rec.race or "?") .. " " .. (rec.className or "?")
+  local line = raceText(rec) .. " " .. (knownText(rec.className) and rec.className or "")
   if rec.spec then line = line .. " · " .. rec.spec end
   GameTooltip:AddLine(line, 1, 1, 1)
-  local lvl = "Level " .. tostring(rec.level or "?")
+  local lvl = "Level " .. tostring(rec.level or "unknown")
   if rec.itemLevel then lvl = lvl .. " · item level " .. rec.itemLevel end
   GameTooltip:AddLine(lvl, 0.8, 0.8, 0.8)
   if rec.guild then
@@ -229,7 +251,7 @@ local function fillRow(r, rec, index)
   r:SetWidth(listW)
   r:Show()
 
-  r.classIcon:SetTexture(T.ClassIcon(rec.classFile))
+  setIcon(r.classIcon, T.ClassIcon(rec.classFile))
   r.name:SetTextColor(T.ClassColour(rec.classFile))
   T.Fit(r.name, rec.name or "?", COLS[1].w - 58)
 
@@ -244,8 +266,8 @@ local function fillRow(r, rec, index)
     end
   end
 
-  r.raceIcon:SetTexture(T.RaceIcon(rec.race))
-  T.Fit(r.race, rec.race or "-", COLS[3].w - 42)
+  setIcon(r.raceIcon, knownText(rec.race) and T.RaceIcon(rec.race) or nil)
+  T.Fit(r.race, raceText(rec), COLS[3].w - 42)
 
   r.level:SetText(tostring(rec.level or "-"))
 
@@ -330,11 +352,11 @@ local function buildCard(parent)
   end
 
   c.profTitle = T.Text(c, "bold", 11, T.c.gold)
-  c.profTitle:SetPoint("TOPLEFT", 14, -330)
+  c.profTitle:SetPoint("TOPLEFT", 14, -348)
 
   c.profRows = {}
   for i = 1, PROF_ROWS do
-    local y = -342 - (i - 1) * 36
+    local y = -360 - (i - 1) * 36
     local pr = {}
     pr.icon = c:CreateTexture(nil, "ARTWORK")
     pr.icon:SetSize(18, 18)
@@ -386,7 +408,7 @@ end
 
 local function fillCard(rec)
   if not rec then
-    card.classIcon:SetTexture(T.fallbackIcon)
+    card.classIcon:Hide()
     card.name:SetText("No characters yet")
     card.sub:SetText("")
     for _, kv in ipairs(card.kv) do
@@ -405,10 +427,12 @@ local function fillCard(rec)
   card.mark:Hide()
   card.empty:Hide()
   card.profTitle:Show()
-  card.classIcon:SetTexture(T.ClassIcon(rec.classFile))
+  setIcon(card.classIcon, T.ClassIcon(rec.classFile))
   card.name:SetTextColor(T.ClassColour(rec.classFile))
   T.Fit(card.name, rec.name or "?", CARD_W - 86)
-  T.Fit(card.sub, (rec.race or "?") .. " " .. (rec.className or ""), CARD_W - 86)
+  local classText = knownText(rec.className) and rec.className or ""
+  local subText = (knownText(rec.race) or classText ~= "") and (raceText(rec) .. " " .. classText) or "Race and class not received yet"
+  T.Fit(card.sub, subText, CARD_W - 86)
 
   local values = {
     rec.level and tostring(rec.level) or "-",
@@ -418,6 +442,7 @@ local function fillCard(rec)
     rec.rank or "-",
     rec.role or "-",
     statusText(rec),
+    experienceOf(rec) or "-",
   }
   for i, kv in ipairs(card.kv) do
     kv.k:SetText(CARD_KEYS[i])

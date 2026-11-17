@@ -1,7 +1,7 @@
 local ADDON, CWC = ...
 local T = CWC.Theme
 
-local W, H = 520, 440
+local W, H = 520, 540
 local frame
 local pages = {}
 local c = {}
@@ -12,16 +12,35 @@ local refreshTag
 local TITLES = {
   welcome = "Welcome",
   tag = "Your character",
+  experience = "Your experience",
   sharing = "Sharing",
   interface = "Interface",
   finish = "All set",
 }
 
+-- Experience levels, newest players last. Saved once per player (account-wide), not per character.
+local EXPERIENCE = {
+  { name = "Master", desc = "Playing since 2004 across most versions: Retail, the Classic eras, Season of Discovery and private servers." },
+  { name = "Veteran", desc = "Playing for 10 years or more, across several versions of the game." },
+  { name = "Experienced", desc = "Several years of play in at least one version of World of Warcraft." },
+  { name = "Novice", desc = "Fairly new to the game, but you know the basics and how it works." },
+  { name = "Newbie", desc = "Brand new to World of Warcraft. Welcome! The guild is happy to help you learn." },
+}
+
 local function currentKeys()
   if mode == "full" then
-    return { "welcome", "tag", "sharing", "interface", "finish" }
+    return { "welcome", "tag", "experience", "sharing", "interface", "finish" }
+  elseif mode == "experience" then
+    return { "experience", "finish" }
   end
   return { "tag", "finish" }
+end
+
+local function chosenExperience()
+  for _, e in ipairs(EXPERIENCE) do
+    if c.exp[e.name]:GetChecked() then return e.name end
+  end
+  return nil
 end
 
 local function newPage(key)
@@ -71,6 +90,7 @@ local function prepareSummary()
     status = "Alt"
   end
   table.insert(lines, "Status: " .. status)
+  table.insert(lines, "Experience: " .. (chosenExperience() or "Not set"))
   table.insert(lines, "")
   table.insert(lines, "Press Finish to save. You can change any of this later from the CWC window's Settings tab.")
   c.summary:SetText(table.concat(lines, "\n"))
@@ -100,6 +120,9 @@ local function prefill()
   c.shareOnline:SetChecked(s.shareOnline)
   c.note:SetText(s.note or "")
   c.minimap:SetChecked(s.minimapShown)
+  for _, e in ipairs(EXPERIENCE) do
+    c.exp[e.name]:SetChecked(CWC_Account.experience == e.name)
+  end
 end
 
 local function save(skipped)
@@ -113,7 +136,16 @@ local function save(skipped)
     a.setupComplete = true
   end
 
-  local rec = CWC_Characters[CWC.PlayerName() or ""]
+  if mode == "full" or mode == "experience" then
+    local chosen = chosenExperience()
+    if chosen then
+      a.experience = chosen
+    elseif skipped then
+      a.experienceSkipped = true
+    end
+  end
+
+  local rec = mode ~= "experience" and CWC_Characters[CWC.PlayerName() or ""] or nil
   if rec then
     if skipped then
       rec.tagSkipped = true
@@ -135,6 +167,7 @@ local function save(skipped)
 
   CWC.SetMinimapShown(s.minimapShown)
   CWC.RefreshRoster()
+  if CWC.SendRecords then CWC.SendRecords() end
   if CWC.RefreshSettings then CWC.RefreshSettings() end
   frame:Hide()
   if not skipped then CWC.Print("Setup saved.") end
@@ -170,7 +203,7 @@ local function build()
 
   local p = newPage("welcome")
   para(p, 0, "CWC keeps the Coping with Caffeine roster and shared lists in your game.", "bold", 16)
-  para(p, -64, "It scans your character when you log in and keeps your details up to date. In this test build, nothing is shared with other players yet.")
+  para(p, -64, "It scans your character when you log in and keeps your details up to date. It shares them with guild mates who also have CWC, so everyone's roster stays current.")
   para(p, -140, "You can change any of this later from the CWC window's Settings tab, or with /cwc setup.", "body", 12, T.c.muted)
 
   p = newPage("tag")
@@ -188,6 +221,27 @@ local function build()
   c.altLabel = para(p, -112, "Your main's character name (you can add it later):", "body", 13)
   c.altOf = T.Input(p, 260, 48)
   c.altOf:SetPoint("TOPLEFT", 0, -136)
+
+  p = newPage("experience")
+  para(p, 0, "How much World of Warcraft have you played?", "bold", 16)
+  c.exp = {}
+  for i, e in ipairs(EXPERIENCE) do
+    local y = -34 - (i - 1) * 56
+    local cb = T.Check(p, e.name, function(self)
+      if self:GetChecked() then
+        for name, other in pairs(c.exp) do
+          if name ~= e.name then other:SetChecked(false) end
+        end
+      end
+    end)
+    cb:SetPoint("TOPLEFT", 0, y)
+    T.Font(cb.label, "bold", 14)
+    local d = para(p, 0, e.desc, "body", 12, T.c.muted)
+    d:ClearAllPoints()
+    d:SetPoint("TOPLEFT", 28, y - 24)
+    d:SetWidth(W - 56 - 28)
+    c.exp[e.name] = cb
+  end
 
   p = newPage("sharing")
   para(p, 0, "Choose what other guildmates can see. These apply once guild sync is switched on.")

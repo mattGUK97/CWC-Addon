@@ -5,6 +5,7 @@ local MIN_W, MIN_H = 1040, 640
 local MAX_W, MAX_H = 1500, 950
 local DEF_W, DEF_H = 1120, 700
 local HEADER_H, FOOTER_H, SIDE_W, PAD = 96, 30, 212, 14
+local BANNER_H = 52
 local CONTENT_X = SIDE_W + PAD
 local ROW_GAP = 16
 local REQUEST_KEYS = { kos = true, blacklist = true }
@@ -14,6 +15,7 @@ local TABS = {
   { key = "roster", label = "Roster", icon = "Interface\\Icons\\INV_Misc_GroupLooking" },
   { key = "kos", label = "Kill on Sight", icon = "Interface\\Icons\\INV_Sword_04" },
   { key = "blacklist", label = "Blacklist", icon = "Interface\\Icons\\INV_Misc_Note_01" },
+  { key = "raid", label = "Raid", icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01" },
   { key = "stats", label = "Statistics", icon = "Interface\\Icons\\INV_Misc_Book_09" },
   { key = "settings", label = "Settings", icon = "Interface\\Icons\\INV_Gizmo_01" },
 }
@@ -503,12 +505,14 @@ local function buildSettings(page)
     { "Check minimap button", function() CWC.MinimapStatus() end },
     { "Reset minimap button", function() CWC.MinimapReset() end },
     { "Profession diagnostics", function() CWC.DumpSkills() end },
+    { "Check guild versions", function() CWC.PrintGuildVersions() end },
+    { "Copy download link", function() CWC.ShowUpdatePopup() end },
   }
   for i, a in ipairs(actions) do
-    local col = (i - 1) % 3
-    local row = math.floor((i - 1) / 3)
-    local b = T.Button(tools, a[1], 220, a[2])
-    b:SetPoint("TOPLEFT", tools, "TOPLEFT", 16 + col * 232, -44 - row * 42)
+    local col = (i - 1) % 4
+    local row = math.floor((i - 1) / 4)
+    local b = T.Button(tools, a[1], 180, a[2])
+    b:SetPoint("TOPLEFT", tools, "TOPLEFT", 16 + col * 190, -44 - row * 42)
   end
   settingsUI.tools = tools
 
@@ -517,7 +521,7 @@ local function buildSettings(page)
   settingsUI.aboutText = T.Text(about, "body", 13, T.c.muted)
   settingsUI.aboutText:SetPoint("TOPLEFT", 16, -44)
   settingsUI.aboutText:SetWordWrap(true)
-  settingsUI.aboutText:SetText("CWC test build " .. CWC.version .. ". Your data stays on this computer until guild sync is switched on. Icons and typefaces match the Coping with Caffeine site.")
+  settingsUI.aboutText:SetText("CWC version " .. CWC.version .. ". Shares your characters, Kill on Sight and Blacklist entries with guild mates who also have CWC. Updates: " .. (CWC.downloadURL or "copingwithcaffeine.mattgtv.co.uk/CWC-Addon") .. ". Icons and typefaces match the Coping with Caffeine site.")
   settingsUI.about = about
 end
 
@@ -578,6 +582,7 @@ function CWC.RefreshSettings()
   else
     tag = name .. ": not scanned yet."
   end
+  tag = tag .. "\nExperience: " .. (CWC_Account.experience or "not set (use Run setup again)")
   settingsUI.tagText:SetText(tag)
 end
 
@@ -614,6 +619,14 @@ function CWC.RefreshSidebar()
   for i, row in ipairs(side.statRows or {}) do
     row.value:SetText(values[i])
   end
+  local syncRow = side.statRows and side.statRows[5]
+  if syncRow then
+    if values[5] == "Update needed" then
+      syncRow.value:SetTextColor(1, 0.35, 0.3, 1)
+    else
+      syncRow.value:SetTextColor(T.c.cream[1], T.c.cream[2], T.c.cream[3], 1)
+    end
+  end
 end
 
 -- Lays out everything that depends on the window width.
@@ -631,6 +644,68 @@ end
 local function safe(name, fn, ...)
   local ok, err = pcall(fn, ...)
   if not ok then CWC.Print("Layout error in " .. name .. ": " .. tostring(err)) end
+end
+
+-- Shows the update banner above the pages when a newer CWC has been seen, and moves the pages down to fit.
+function CWC.RefreshUpdateBanner()
+  if not window or not window.updateBanner or not content then return end
+  local v = CWC.UpdateAvailable and CWC.UpdateAvailable()
+  local b = window.updateBanner
+  local top = HEADER_H + PAD
+  if v then
+    b.title:SetText("UPDATE REQUIRED: CWC " .. v .. " is available. You have " .. CWC.version .. ".")
+    b.body:SetText("Without it, guild sync can stop working and the roster may show missing, mismatched or unreliable data.")
+    b:Show()
+    top = top + BANNER_H + 10
+  else
+    b:Hide()
+  end
+  content:ClearAllPoints()
+  content:SetPoint("TOPLEFT", CONTENT_X, -top)
+  content:SetPoint("BOTTOMRIGHT", -PAD, FOOTER_H + 8)
+  relayout()
+end
+
+-- Raid: a preview page describing what is planned. Nothing on it works yet.
+local function buildRaidPage(page)
+  local h = T.Text(page, "heading", 20, T.c.gold)
+  h:SetPoint("TOPLEFT", 0, 0)
+  h:SetText("Raid")
+
+  local badge = T.Badge(page, T.c.gold)
+  badge:SetSize(66, 16)
+  badge:SetPoint("LEFT", h, "RIGHT", 12, 3)
+  badge:SetLabel("PREVIEW", T.c.gold)
+
+  local d = T.Text(page, "body", 13, T.c.muted)
+  d:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -6)
+  d:SetPoint("RIGHT", page, "RIGHT", 0, 0)
+  d:SetWordWrap(true)
+  d:SetText("This section is a work in progress. Raid tools are planned for when raids become available, so nothing here works yet.")
+
+  local card = T.Card(page)
+  card:SetPoint("TOPLEFT", d, "BOTTOMLEFT", 0, -14)
+  card:SetPoint("RIGHT", page, "RIGHT", 0, 0)
+  card:SetHeight(260)
+  cardTitle(card, "What's planned")
+
+  local mark = card:CreateTexture(nil, "ARTWORK")
+  mark:SetSize(150, 150)
+  mark:SetPoint("RIGHT", -30, -10)
+  mark:SetTexture(CWC.logoPath)
+  mark:SetAlpha(0.14)
+
+  local intro = T.Text(card, "body", 14, T.c.cream)
+  intro:SetPoint("TOPLEFT", 16, -50)
+  intro:SetPoint("RIGHT", card, "RIGHT", -200, 0)
+  intro:SetWordWrap(true)
+  intro:SetText("When raids open up, this page will let you mark your interest in raiding with the guild, so officers can see who wants to raid before they plan a raid night.")
+
+  local list = T.Text(card, "body", 13, T.c.muted)
+  list:SetPoint("TOPLEFT", intro, "BOTTOMLEFT", 0, -16)
+  list:SetPoint("RIGHT", card, "RIGHT", -200, 0)
+  list:SetWordWrap(true)
+  list:SetText("•  Mark yourself as interested in raiding\n•  Choose the roles you can fill: tank, healer or damage\n•  See who else is interested, and which roles are covered\n\nDetails may change as the feature takes shape. Ideas are welcome: tell an officer what you'd like to see.")
 end
 
 local function buildSidebarFooter()
@@ -755,8 +830,8 @@ local function build()
   sideRule:SetPoint("BOTTOMRIGHT")
 
   -- Grouped navigation, with muted gold group headings.
-  local NAV_Y = { roster = -40, kos = -82, blacklist = -124, stats = -196, settings = -238 }
-  local GROUP_HEADS = { { text = "GUILD", y = -18 }, { text = "TOOLS", y = -174 } }
+  local NAV_Y = { roster = -38, kos = -78, blacklist = -118, raid = -158, stats = -222, settings = -262 }
+  local GROUP_HEADS = { { text = "GUILD", y = -18 }, { text = "TOOLS", y = -202 } }
   for _, g in ipairs(GROUP_HEADS) do
     local gh = T.Text(side, "bold", 10, T.c.gold)
     gh:SetPoint("TOPLEFT", 22, g.y)
@@ -784,10 +859,35 @@ local function build()
   end
 
   CWC.BuildRosterPage(pages.roster)
-  buildListPage("kos", pages.kos, "Kill on Sight", "Mark enemies to hunt. Requests go to officers for approval, and approved entries will show for everyone once sync is on.")
+  buildListPage("kos", pages.kos, "Kill on Sight", "Mark enemies to hunt. Requests go to officers for approval, and approved entries show for everyone in the guild who has CWC.")
   buildListPage("blacklist", pages.blacklist, "Blacklist", "Players to avoid, such as scammers and ninja looters. Requests need officer approval.")
+  buildRaidPage(pages.raid)
   buildStats(pages.stats)
   buildSettings(pages.settings)
+
+  -- Update banner: shown above the pages whenever a newer CWC has been seen in the guild.
+  local banner = CreateFrame("Frame", nil, window, "BackdropTemplate")
+  banner:SetPoint("TOPLEFT", CONTENT_X, -(HEADER_H + PAD))
+  banner:SetPoint("TOPRIGHT", -PAD, -(HEADER_H + PAD))
+  banner:SetHeight(BANNER_H)
+  banner:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+  banner:SetBackdropColor(0.32, 0.06, 0.05, 0.95)
+  banner:SetBackdropBorderColor(1, 0.35, 0.3, 1)
+  local warnIcon = banner:CreateTexture(nil, "ARTWORK")
+  warnIcon:SetSize(28, 28)
+  warnIcon:SetPoint("LEFT", 12, 0)
+  warnIcon:SetTexture("Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew")
+  banner.title = T.Text(banner, "bold", 13, { 1, 0.85, 0.8, 1 })
+  banner.title:SetPoint("TOPLEFT", 50, -9)
+  banner.title:SetPoint("RIGHT", banner, "RIGHT", -190, 0)
+  banner.body = T.Text(banner, "body", 12, T.c.cream)
+  banner.body:SetPoint("BOTTOMLEFT", 50, 9)
+  banner.body:SetPoint("RIGHT", banner, "RIGHT", -190, 0)
+  banner.body:SetWordWrap(false)
+  local getIt = T.Button(banner, "Get the update", 160, function() CWC.ShowUpdatePopup() end, true)
+  getIt:SetPoint("RIGHT", -12, 0)
+  banner:Hide()
+  window.updateBanner = banner
 
   -- Footer with the resize grip in the bottom-right corner.
   local footRule = T.Rule(window, 0.25)
@@ -795,7 +895,7 @@ local function build()
   footRule:SetPoint("BOTTOMRIGHT", 0, FOOTER_H)
   local footer = T.Text(window, "body", 11, T.c.muted)
   footer:SetPoint("BOTTOMLEFT", 22, 9)
-  footer:SetText("Test build " .. CWC.version .. " · Data stays on this computer until guild sync is switched on.")
+  footer:SetText("Version " .. CWC.version .. " · Shares data with online guild mates who have CWC.")
 
   local grip = CreateFrame("Button", nil, window)
   grip:SetSize(16, 16)
@@ -823,11 +923,13 @@ local function build()
 
   safe("layout", relayout)
   safe("sidebar", CWC.RefreshSidebar)
+  safe("update", CWC.RefreshUpdateBanner)
 end
 
 function CWC.OpenWindow(key)
   if not window then build() end
   window:Show()
+  safe("update", CWC.RefreshUpdateBanner)
   selectTab(key or CWC_Account.settings.defaultTab or "roster")
   safe("sidebar", CWC.RefreshSidebar)
   safe("layout", relayout)

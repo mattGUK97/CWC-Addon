@@ -18,6 +18,9 @@ CWC.On("PLAYER_LOGIN", function()
       CWC.ShowSetup("full")
     elseif rec and not rec.tagged and not rec.tagSkipped then
       CWC.ShowSetup("tag")
+    elseif not CWC_Account.experience and not CWC_Account.experienceSkipped then
+      -- Players who finished setup before 0.8.0 are asked for their experience once.
+      CWC.ShowSetup("experience")
     end
   end)
 end)
@@ -52,11 +55,15 @@ SlashCmdList["CWC"] = function(msg)
     CWC.MinimapStatus()
   elseif msg == "minimap reset" then
     CWC.MinimapReset()
+  elseif msg == "versions" then
+    CWC.PrintGuildVersions()
+  elseif msg == "update" then
+    CWC.ShowUpdatePopup()
   elseif msg == "scan" then
     CWC.ScanCharacter()
     CWC.RefreshRoster()
     CWC.Print("Character scanned.")
   else
-    CWC.Print("Commands: /cwc (roster), /cwc setup, /cwc scan")
+    CWC.Print("Commands: /cwc (roster), /cwc setup, /cwc scan, /cwc versions, /cwc update")
   end
 end
