@@ -8,6 +8,10 @@ local function roleFor(rankIndex)
   return "Member"
 end
 
+-- Profession names CWC recognises, from any source.
+local KNOWN = { ["Alchemy"]=1, ["Blacksmithing"]=1, ["Cooking"]=1, ["Enchanting"]=1, ["Engineering"]=1,
+  ["First Aid"]=1, ["Fishing"]=1, ["Herbalism"]=1, ["Leatherworking"]=1, ["Mining"]=1, ["Skinning"]=1, ["Tailoring"]=1 }
+
 local function readProfessions()
   local list = {}
   if not GetProfessions or not GetProfessionInfo then return list end
@@ -44,6 +48,23 @@ local function readProfessions()
     if known[p.name] and not have[p.name] then
       table.insert(list, { name = p.name, skill = p.skill, max = p.max, kind = "secondary" })
       have[p.name] = true
+    end
+  end
+  -- Check every profession slot, not just the six GetProfessions hands back.
+  for _, p in ipairs(CWC.ProbeProfessionSlots()) do
+    if KNOWN[p.name] and not have[p.name] and p.max > 0 then
+      table.insert(list, { name = p.name, skill = p.skill, max = p.max, kind = "secondary" })
+      have[p.name] = true
+    end
+  end
+  -- Values read from the Professions window the last time the player opened it.
+  local me = CWC_Characters and CWC_Characters[CWC.PlayerName() or ""]
+  if me and me.windowProfs then
+    for pname, v in pairs(me.windowProfs) do
+      if KNOWN[pname] and not have[pname] and (v.max or 0) > 0 then
+        table.insert(list, { name = pname, skill = v.skill or 0, max = v.max, kind = "secondary" })
+        have[pname] = true
+      end
     end
   end
   return list
@@ -109,6 +130,17 @@ end
 
 -- /cwc profs: prints every skill line the client reports, to find out why a profession is missing.
 function CWC.DumpSkills()
+  for _, p in ipairs(CWC.ProbeProfessionSlots()) do
+    CWC.Print(string.format("Profession slot %d: %s %d/%d", p.index, p.name, p.skill, p.max))
+  end
+  local frames = CWC.FindProfessionFrames()
+  CWC.Print("Open profession windows: " .. (#frames > 0 and table.concat(frames, ", ") or "none (open your Professions window, then click this again)"))
+  local me = CWC_Characters and CWC_Characters[CWC.PlayerName() or ""]
+  if me and me.windowProfs then
+    for pname, v in pairs(me.windowProfs) do
+      CWC.Print("Saved from Professions window: " .. pname .. " " .. tostring(v.skill) .. "/" .. tostring(v.max))
+    end
+  end
   for _, p in ipairs(CWC.ReadTradeSkillLines()) do
     CWC.Print("Trade skill: " .. p.name .. " id " .. p.id .. " " .. p.skill .. "/" .. p.max)
   end
@@ -184,3 +216,100 @@ function CWC.ReadTradeSkillLines()
   end
   return out
 end
+
+-- Checks every profession slot (1 to 40) directly. GetProfessions only returns six of them.
+function CWC.ProbeProfessionSlots()
+  local out = {}
+  if not GetProfessionInfo then return out end
+  for i = 1, 40 do
+    local ok, name, _, skill, max = pcall(GetProfessionInfo, i)
+    if ok and type(name) == "string" and name ~= "" then
+      table.insert(out, { index = i, name = name, skill = tonumber(skill) or 0, max = tonumber(max) or 0 })
+    end
+  end
+  return out
+end
+
+-- Reads "First Aid 273/300"-style bars from a window and everything inside it.
+local function collectBars(frame, depth, out)
+  if not frame or depth > 12 then return end
+  local okR, regions = pcall(function() return { frame:GetRegions() } end)
+  if okR then
+    for _, r in ipairs(regions) do
+      local okT, isText = pcall(function() return r:GetObjectType() == "FontString" end)
+      if okT and isText then
+        local okG, t = pcall(r.GetText, r)
+        if okG and type(t) == "string" then
+          local n, sk, mx = string.match(t, "^%s*(.-)%s+(%d+)%s*/%s*(%d+)%s*$")
+          if n and KNOWN[n] then out[n] = { skill = tonumber(sk), max = tonumber(mx) } end
+        end
+      end
+    end
+  end
+  local okC, kids = pcall(function() return { frame:GetChildren() } end)
+  if okC then
+    for _, k in ipairs(kids) do collectBars(k, depth + 1, out) end
+  end
+end
+
+-- Saves professions shown in the Professions window. With replace, the saved list becomes exactly what
+-- the window shows, so a profession that has been unlearned drops off the next time the window opens.
+function CWC.CaptureProfessionsWindow(frame, replace)
+  local found = {}
+  collectBars(frame, 0, found)
+  if not next(found) then return 0 end
+  local me = CWC_Characters and CWC_Characters[CWC.PlayerName() or ""]
+  if not me then return 0 end
+  local old = me.windowProfs or {}
+  local new = replace and {} or old
+  local changed, count = false, 0
+  for pname, v in pairs(found) do
+    local o = old[pname]
+    if not o or o.skill ~= v.skill or o.max ~= v.max then changed = true end
+    new[pname] = { skill = v.skill, max = v.max, seen = time() }
+    count = count + 1
+  end
+  me.windowProfs = new
+  if changed then
+    CWC.ScanCharacter()
+    if CWC.RefreshRoster then pcall(CWC.RefreshRoster) end
+    if CWC.SendRecords then CWC.SendRecords() end
+    local fa = found["First Aid"]
+    if fa then CWC.Print("First Aid " .. fa.skill .. "/" .. fa.max .. " saved from the Professions window.") end
+  end
+  return count
+end
+
+-- Names of visible windows that look like a professions window, read for the diagnostics button.
+function CWC.FindProfessionFrames()
+  local names = {}
+  if not EnumerateFrames then return names end
+  local f = EnumerateFrames()
+  while f do
+    local okN, n = pcall(f.GetName, f)
+    local okV, vis = pcall(f.IsVisible, f)
+    if okN and okV and vis and type(n) == "string" and string.find(n, "Profession") and not string.find(n, "^CWC") then
+      if CWC.CaptureProfessionsWindow(f, false) > 0 then table.insert(names, n) end
+    end
+    f = EnumerateFrames(f)
+  end
+  return names
+end
+
+-- Hook the Professions window so its bars are read every time it opens.
+local CANDIDATES = { "ProfessionsBookFrame", "ProfessionsFrame", "TradeSkillFrame", "SpellBookFrame", "PlayerSpellsFrame" }
+local hooked = {}
+local function hookProfessionWindows()
+  for _, n in ipairs(CANDIDATES) do
+    local f = _G[n]
+    if f and not hooked[n] and f.HookScript then
+      hooked[n] = true
+      f:HookScript("OnShow", function(self)
+        C_Timer.After(0.5, function() CWC.CaptureProfessionsWindow(self, true) end)
+        C_Timer.After(2, function() CWC.CaptureProfessionsWindow(self, true) end)
+      end)
+    end
+  end
+end
+CWC.On("ADDON_LOADED", hookProfessionWindows)
+CWC.On("PLAYER_LOGIN", hookProfessionWindows)

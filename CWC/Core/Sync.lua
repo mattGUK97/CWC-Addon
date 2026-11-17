@@ -384,3 +384,6 @@ function CWC.RefreshGuildData()
   send("HELLO|" .. CWC.version)
   CWC.Print("Asked online guild members to send their characters.")
 end
+
+-- Lets other files send this computer's characters to the guild (for example after a profession update).
+CWC.SendRecords = sendRecords
