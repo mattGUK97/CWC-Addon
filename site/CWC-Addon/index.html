@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coping with Caffeine (CWC) Addon</title>
+<meta name="description" content="Coping with Caffeine (CWC) is a private guild addon for World of Warcraft: a shared roster, professions at a glance, and Kill on Sight and blacklist requests.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0b0a;
+    --panel: #171310;
+    --panel-hi: #211b16;
+    --line: #56422a;
+    --gold: #d8a66b;
+    --cream: #e6e6ea;
+    --muted: #a8a8a8;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --bg: #0d0b0a; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--cream);
+    font-family: "Barlow", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  a { color: var(--gold); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  h1, h2, h3 { font-family: "Cinzel", serif; font-weight: 700; color: var(--gold); margin: 0; }
+  h2 { font-size: 30px; margin-bottom: 14px; }
+  h3 { font-size: 19px; margin-bottom: 8px; }
+  p { margin: 0 0 14px; }
+
+  header.hero {
+    position: relative;
+    min-height: 520px;
+    display: flex;
+    align-items: center;
+    background: linear-gradient(180deg, rgba(13,11,10,0.35), rgba(13,11,10,0.95)), url("https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/banner.jpg") center / cover no-repeat;
+    border-bottom: 1px solid var(--line);
+  }
+  .hero .wrap { text-align: center; padding-top: 56px; padding-bottom: 56px; }
+  .hero img.logo { width: 120px; height: 120px; object-fit: contain; filter: drop-shadow(0 4px 14px rgba(0,0,0,0.6)); }
+  .hero h1 { font-size: 46px; margin-top: 12px; letter-spacing: 0.5px; }
+  .hero .tag { font-size: 19px; color: var(--cream); max-width: 640px; margin: 14px auto 28px; }
+  .btn {
+    display: inline-block;
+    padding: 14px 30px;
+    background: var(--gold);
+    color: #140f0a;
+    font-family: "Barlow", sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+    text-decoration: none;
+    border-radius: 3px;
+    border: 1px solid var(--gold);
+    transition: background 0.15s, transform 0.15s;
+  }
+  .btn:hover { background: #ebb97e; transform: translateY(-1px); }
+  .btn.ghost { background: transparent; color: var(--gold); }
+  .btn.ghost:hover { background: rgba(216,166,107,0.12); }
+  .meta { margin-top: 14px; color: var(--muted); font-size: 14px; }
+
+  section { padding: 64px 0; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: 0; }
+  .lede { max-width: 760px; color: var(--cream); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px; }
+  .card {
+    background: linear-gradient(180deg, var(--panel-hi), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 22px;
+  }
+  .card p { color: var(--muted); margin: 0; font-size: 15px; }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 14px; }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding: 16px 16px 16px 64px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 16px;
+    top: 14px;
+    width: 34px;
+    height: 34px;
+    line-height: 34px;
+    text-align: center;
+    border-radius: 50%;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+  }
+  .steps li span { color: var(--muted); }
+
+  details {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0 20px;
+    margin-bottom: 10px;
+  }
+  details summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 16px 0;
+    font-weight: 600;
+    color: var(--cream);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: "+"; color: var(--gold); font-size: 22px; }
+  details[open] summary::after { content: "–"; }
+  details p { color: var(--muted); padding-bottom: 16px; margin: 0; }
+
+  .download {
+    text-align: center;
+    background: radial-gradient(ellipse at center, rgba(216,166,107,0.12), transparent 70%);
+  }
+  .download .meta { margin-top: 18px; }
+
+  footer { padding: 28px 0 40px; color: var(--muted); font-size: 14px; text-align: center; }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .hero h1 { font-size: 34px; }
+    h2 { font-size: 26px; }
+    section { padding: 48px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <img class="logo" src="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/site/CWC-Addon/img/logo.png" alt="Coping with Caffeine logo">
+    <h1>Coping with Caffeine</h1>
+    <p class="tag">A private World of Warcraft addon for our guild: a shared roster, professions at a glance, and Kill on Sight and blacklist requests that officers approve together.</p>
+    <a class="btn" href="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/CWC-Addon.zip" download>Download CWC</a>
+    <p class="meta">Test build 0.7.8 · WoW Forever · Retail</p>
+  </div>
+</header>
+
+<section id="about">
+  <div class="wrap">
+    <h2>What is CWC?</h2>
+    <p class="lede">Coping with Caffeine is the guild's own addon. It keeps the roster up to date automatically, so you can see who is online, what they play, which professions they have and who is someone's alt, without asking around.</p>
+    <p class="lede">It is built for the guild only. It is not on a public addon store and it does not talk to any outside server.</p>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Roster</h3>
+        <p>Every character in the guild with race, class, level, item level, guild rank and role. Sort by name, race, level or status, and search by name, class, spec or profession.</p>
+      </div>
+      <div class="card">
+        <h3>Professions at a glance</h3>
+        <p>Profession icons appear beside each name, so you can see who can craft or gather what. Pick a character to see their skill levels.</p>
+      </div>
+      <div class="card">
+        <h3>Main and alt links</h3>
+        <p>Tag each character as a main or an alt. Alts link to their main, so you always know whose alt is whose.</p>
+      </div>
+      <div class="card">
+        <h3>Kill on Sight</h3>
+        <p>Members can submit a target with a reason. Officers and the Guild Master approve or deny each request, and the decision reaches everyone who is online.</p>
+      </div>
+      <div class="card">
+        <h3>Player blacklist</h3>
+        <p>The same request and approval process, for players the guild should avoid trading or grouping with.</p>
+      </div>
+      <div class="card">
+        <h3>Statistics</h3>
+        <p>Counts of characters, mains and alts, plus the most common classes, races and professions in the guild.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="lede">When you log in, CWC reads your character and saves it on your computer. When you are online with other guild members who have the addon, you share your characters with each other, and the roster fills in. Nothing is sent to a website or a server.</p>
+    <ul class="steps">
+      <li><strong>Log in on your character.</strong> <span>CWC scans it automatically. A setup screen asks whether it is a main or an alt on first use.</span></li>
+      <li><strong>Stay online with guild mates.</strong> <span>Their characters appear on your roster as soon as you are both online. Characters you have already received stay visible when those players are offline.</span></li>
+      <li><strong>Submit or approve requests.</strong> <span>Anyone can submit a request. Officers and Guild Masters approve or deny it, and everyone online sees the result.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install</h2>
+    <ol class="steps">
+      <li><strong>Download the zip.</strong> <span>Use the button at the top of this page.</span></li>
+      <li><strong>Extract the CWC folder</strong> <span>into your WoW addons folder: <code>World of Warcraft\_retail_\Interface\AddOns\</code>. The folder must be named <code>CWC</code>.</span></li>
+      <li><strong>Start the game and enable CWC</strong> <span>on the addon list, then log in. Type <code>/reload</code> if it was already running.</span></li>
+      <li><strong>Find the minimap button</strong> <span>and click it to open the roster. Right-click it for setup.</span></li>
+    </ol>
+    <p style="margin-top:18px;color:var(--muted);font-size:15px">Updating: close the game, replace the CWC folder with the new one, and start again.</p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>Frequently asked questions</h2>
+
+    <details>
+      <summary>Is CWC safe to install?</summary>
+      <p>CWC only reads your own character details and shares them with guild members who have the addon. It does not ask for your password, your account details or any payment information, and it does not send anything to a website. The source code is public, so anyone can check it.</p>
+    </details>
+
+    <details>
+      <summary>Why can't I see my guild mates' characters yet?</summary>
+      <p>Characters are shared only while you and the other player are both online with the addon. Once you have received someone's characters, they stay on your roster, even when that person is offline. Ask a guild mate to log in while you are online.</p>
+    </details>
+
+    <details>
+      <summary>Does it work with other addons?</summary>
+      <p>CWC works alongside other addons. Some minimap collector addons move buttons into their own bags, which can hide CWC's minimap button. If that happens, tell an officer which addons you use so it can be checked.</p>
+    </details>
+
+    <details>
+      <summary>How do I tag myself as a main or an alt?</summary>
+      <p>Open the setup screen by right-clicking the minimap button, or from the Settings page. Choose main or alt, and for an alt, pick the name of its main.</p>
+    </details>
+
+    <details>
+      <summary>Who can approve a Kill on Sight or blacklist request?</summary>
+      <p>Only Guild Masters and Officers. Requests from anyone else are shown to everyone, but they stay pending until an officer approves or denies them.</p>
+    </details>
+
+    <details>
+      <summary>My character shows the wrong class, race or professions. What do I do?</summary>
+      <p>Log in on that character and use <em>Rescan character</em> on the Settings page. Then open <em>Refresh guild data</em> while your guild mates are online.</p>
+    </details>
+
+    <details>
+      <summary>Where do I report a bug or suggest a change?</summary>
+      <p>Tell an officer or post in the guild's Discord. Please include a screenshot and what you were doing when the problem happened.</p>
+    </details>
+  </div>
+</section>
+
+<section class="download" id="download">
+  <div class="wrap">
+    <h2>Ready to install?</h2>
+    <p class="lede" style="margin:0 auto 24px">Download the latest test build and join the guild's roster.</p>
+    <a class="btn" href="https://raw.githubusercontent.com/mattGUK97/CWC-Addon/main/CWC-Addon.zip" download>Download CWC</a>
+    <p class="meta">Version 0.7.8 · Zip file · Extract to Interface\AddOns</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Coping with Caffeine · WoW Forever · Built for the guild, not for sale.</div>
+</footer>
+
+</body>
+</html>
