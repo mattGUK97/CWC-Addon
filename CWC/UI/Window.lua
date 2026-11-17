@@ -977,6 +977,10 @@ local function build()
 end
 
 function CWC.OpenWindow(key)
+  if CWC.GuildState and CWC.GuildState() == "outsider" then
+    CWC.ShowNotInGuild()
+    return
+  end
   if not window then build() end
   window:Show()
   safe("update", CWC.RefreshUpdateBanner)

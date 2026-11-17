@@ -310,6 +310,10 @@ local function build()
 end
 
 function CWC.ShowSetup(newMode)
+  if CWC.GuildState and CWC.GuildState() == "outsider" then
+    CWC.ShowNotInGuild()
+    return
+  end
   if not frame then build() end
   mode = newMode or "full"
   pageIndex = 1

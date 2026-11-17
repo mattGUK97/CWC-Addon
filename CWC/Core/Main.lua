@@ -11,8 +11,16 @@ CWC.On("PLAYER_LOGIN", function()
   if not ok then CWC.Print("Scan error: " .. tostring(err)) end
   CWC.RefreshRoster()
 
-  -- Give the UI a moment to settle before opening the wizard.
-  C_Timer.After(2, function()
+  -- Open the wizard once the guild check has passed. Anyone outside the guild sees a message instead.
+  local tries = 0
+  local function maybeWizard()
+    tries = tries + 1
+    local st = CWC.GuildState and CWC.GuildState() or "member"
+    if st == "checking" then
+      if tries < 10 then C_Timer.After(2, maybeWizard) end
+      return
+    end
+    if st ~= "member" then return end
     local rec = CWC_Characters[CWC.PlayerName()]
     if not CWC_Account.setupComplete then
       CWC.ShowSetup("full")
@@ -22,7 +30,8 @@ CWC.On("PLAYER_LOGIN", function()
       -- Players who finished setup before 0.8.0 are asked for their experience once.
       CWC.ShowSetup("experience")
     end
-  end)
+  end
+  C_Timer.After(2, maybeWizard)
 end)
 
 -- Re-scan when something changes, with a short debounce.

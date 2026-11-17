@@ -315,6 +315,27 @@ local function buildHeaders()
   end
 end
 
+-- Guild Master only: remove a character received from the guild (not one on this computer).
+StaticPopupDialogs["CWC_REMOVE_CHARACTER"] = {
+  text = "Remove %s from the CWC roster for everyone?\n\nThey'll only reappear if they log in with CWC while still in the guild.",
+  button1 = "Remove",
+  button2 = CANCEL or "Cancel",
+  OnAccept = function(self, data)
+    if data then CWC.RemoveCharacter(data) end
+  end,
+  timeout = 0,
+  whileDead = true,
+  hideOnEscape = true,
+  preferredIndex = 3,
+}
+
+local function canRemove(rec)
+  if not rec or not rec.name or not rec.remote then return false end
+  if CWC_Characters and CWC_Characters[rec.name] then return false end
+  local me = CWC_Characters and CWC_Characters[CWC.PlayerName() or ""]
+  return me ~= nil and me.role == "Guild Master"
+end
+
 -- Right-hand character card: circular portrait, key facts and professions.
 local function buildCard(parent)
   local c = T.Card(parent)
@@ -384,6 +405,13 @@ local function buildCard(parent)
   c.scanned = T.Text(c, "body", 11, T.c.muted)
   c.scanned:SetPoint("BOTTOMLEFT", 14, 12)
 
+  c.remove = T.Button(c, "Remove", 72, function()
+    local rec = c.rec
+    if rec and rec.name then StaticPopup_Show("CWC_REMOVE_CHARACTER", rec.name, nil, rec.name) end
+  end)
+  c.remove:SetPoint("BOTTOMRIGHT", -10, 6)
+  c.remove:Hide()
+
   -- Empty state: the site's monster logo, faded, with a line of text.
   c.mark = c:CreateTexture(nil, "ARTWORK")
   c.mark:SetSize(96, 96)
@@ -411,6 +439,8 @@ local function hideProfRow(pr)
 end
 
 local function fillCard(rec)
+  card.rec = rec
+  card.remove:SetShown(canRemove(rec))
   if not rec then
     card.classIcon:Hide()
     card.name:SetText("No characters yet")

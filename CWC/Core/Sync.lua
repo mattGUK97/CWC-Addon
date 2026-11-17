@@ -76,6 +76,16 @@ local function pump()
     return
   end
   busy = true
+  local st = CWC.GuildState and CWC.GuildState() or "member"
+  if st == "checking" then
+    table.insert(queue, 1, job)
+    C_Timer.After(2, pump)
+    return
+  elseif st == "outsider" then
+    queue = {}
+    busy = false
+    return
+  end
   if job.target then
     sendFn(PREFIX, job.msg, "WHISPER", job.target)
   elseif IsInGuild() then
@@ -195,6 +205,9 @@ local function dumpTo(target)
       end
     end
   end
+  for name, r in pairs(CWC_Account.removed or {}) do
+    send("DEL|" .. clean(name) .. "|" .. clean(r.by) .. "|" .. tostring(r.at or 0), target)
+  end
 end
 
 -- Character records. Each character is sent as a CH3 line (details) and a PRF line (professions).
@@ -258,6 +271,28 @@ local function sendRecords()
   end
 end
 
+-- Guild Master removals. A removed character stays hidden for everyone until it logs in with CWC again
+-- after the removal (its scan time is then newer), which only happens while it is still in the guild.
+local function isRemoved(name, scanned)
+  local r = CWC_Account.removed and CWC_Account.removed[name]
+  if not r then return false end
+  if scanned and scanned > (r.at or 0) then
+    CWC_Account.removed[name] = nil
+    return false
+  end
+  return true
+end
+
+local function applyRemoval(name, by, at)
+  if not isText(name) then return end
+  CWC_Account.removed = CWC_Account.removed or {}
+  local existing = CWC_Account.removed[name]
+  if existing and (existing.at or 0) >= at then return end
+  CWC_Account.removed[name] = { by = by, at = at }
+  if CWC_Account.remote then CWC_Account.remote[name] = nil end
+  refreshUI("roster")
+end
+
 -- Updates a received character in place. Each field only changes when the new value is valid.
 local function storeRemote(msg)
   local p = split(msg, 16) -- CH3, name, flag, mainOf, exp, first, last, classFile, className, race,
@@ -265,6 +300,7 @@ local function storeRemote(msg)
   local name = p[2]
   if not isText(name) then return end
   if CWC_Characters and CWC_Characters[name] then return end -- this computer's own record wins
+  if isRemoved(name, validNumber(p[17], 1, 4102444800)) then return end
   CWC_Account.remote = CWC_Account.remote or {}
   local r = CWC_Account.remote[name] or {}
   r.name = name
@@ -370,6 +406,7 @@ end
 
 local function onAddonMessage(prefix, msg, channel, sender)
   if prefix ~= PREFIX then return end
+  if CWC.IsGuildMember and not CWC.IsGuildMember() then return end
   if not (channel == "GUILD" or channel == "WHISPER") then return end
   local from = baseName(sender)
   if from == "" or from == CWC.PlayerName() then return end
@@ -390,6 +427,15 @@ local function onAddonMessage(prefix, msg, channel, sender)
     noteOutdated(from) -- old layout: ignored, so it cannot put wrong values on the roster
   elseif string.sub(msg, 1, 4) == "PRF|" then
     storeProfs(msg)
+  elseif string.sub(msg, 1, 4) == "DEL|" then
+    local p = split(msg, 3) -- DEL, name, by, at
+    local name, by, at = p[2], p[3], tonumber(p[4])
+    if at then
+      -- Only the Guild Master (rank 0) can remove characters.
+      whenRankKnown(by, 5, function(r)
+        if r == 0 then applyRemoval(name, by, at) end
+      end)
+    end
   elseif string.sub(msg, 1, 4) == "VER|" then
     noteVersion(string.sub(msg, 5), from)
   elseif string.sub(msg, 1, 6) == "HELLO|" then
@@ -407,6 +453,7 @@ end
 
 -- Public API used by the window.
 function CWC.SyncStatus()
+  if CWC.GuildState and CWC.GuildState() == "outsider" then return "Not in the guild" end
   if CWC.UpdateAvailable and CWC.UpdateAvailable() then return "Update needed" end
   if IsInGuild() then return "On" end
   return "Not in a guild"
@@ -512,4 +559,24 @@ function CWC.PrintGuildVersions()
     local behind = v.version == "older" or compareVersions(v.version, newest) < 0
     CWC.Print(n .. ": " .. label .. (behind and " |cffff5050(needs to update)|r" or ""))
   end
+end
+
+-- Guild Master only: removes a character from the roster for everyone online, and for anyone who logs in
+-- later while someone who saw the removal is online.
+function CWC.RemoveCharacter(name)
+  local me = CWC_Characters and CWC_Characters[CWC.PlayerName() or ""]
+  if not me or me.role ~= "Guild Master" then
+    CWC.Print("Only the Guild Master can remove characters from the roster.")
+    return false
+  end
+  if CWC_Characters[name] then
+    CWC.Print(name .. " is a character on this computer, so it can't be removed.")
+    return false
+  end
+  local at = time()
+  local by = CWC.PlayerName() or "?"
+  applyRemoval(name, by, at)
+  send("DEL|" .. clean(name) .. "|" .. clean(by) .. "|" .. at)
+  CWC.Print(name .. " removed from the roster. They'll only reappear if they log in with CWC while still in the guild.")
+  return true
 end

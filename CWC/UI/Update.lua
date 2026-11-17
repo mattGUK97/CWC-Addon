@@ -79,6 +79,7 @@ end
 
 -- Shows every warning for a newer version once per session, and keeps the window and sidebar current.
 function CWC.CheckForUpdate()
+  if CWC.GuildState and CWC.GuildState() == "outsider" then return end
   local v = CWC.UpdateAvailable()
   if CWC.RefreshUpdateBanner then pcall(CWC.RefreshUpdateBanner) end
   if CWC.RefreshSidebar then pcall(CWC.RefreshSidebar) end
