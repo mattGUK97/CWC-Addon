@@ -1,71 +1,91 @@
 local ADDON, CWC = ...
 local T = CWC.Theme
 
--- Kill on Sight alerts. When a player on the approved Kill on Sight list comes into view, CWC plays a short
--- warning sound and shows a red pop-up with their name and the reason.
+-- Alerts for approved Kill on Sight and Blacklist entries. Each plays a short warning sound and shows a
+-- pop-up at the top of the screen.
 --
--- How a player is spotted: their nameplate appearing (enemy players within about 40 yards, when enemy
--- nameplates are switched on), or targeting or mousing over them. Each player alerts at most once every
--- two minutes, so a fight does not spam the alert.
+-- Kill on Sight: the player comes into view, by their nameplate appearing (enemy players within about
+-- 40 yards, when enemy nameplates are switched on), or by targeting or mousing over them.
 --
--- The combat log is not used: this version of the game reserves it for the Blizzard UI, and registering
--- for it makes the game block the addon.
+-- Blacklist: only direct contact counts: they whisper you, invite you to a group, are in your group,
+-- open a trade with you, or you exchange mail. Seeing them nearby or in public chat does not alert.
+--
+-- The combat log is not used: this version of the game reserves it for the Blizzard UI.
 
-local COOLDOWN = 120       -- seconds between alerts for the same player
-local SHOW_FOR = 7         -- seconds the pop-up stays on screen
-local REBUILD_EVERY = 10   -- seconds between refreshes of the approved list
+local REBUILD_EVERY = 10  -- seconds between refreshes of the approved lists
+local SHOW_FOR = 7        -- seconds a pop-up stays on screen
 
-local lookup, builtAt = {}, 0
+local KINDS = {
+  kos = {
+    title = "KILL ON SIGHT",
+    icon = "Interface\\PVPFrame\\PVP-Currency-Horde",
+    titleColour = { 1, 0.3, 0.25, 1 },
+    bg = { 0.16, 0.03, 0.03, 0.95 },
+    border = { 0.9, 0.15, 0.12, 1 },
+    setting = "kosAlerts",
+    cooldown = 120,
+  },
+  blacklist = {
+    title = "BLACKLISTED PLAYER",
+    icon = "Interface\\PVPFrame\\PVP-Currency-Alliance",
+    titleColour = { 1, 0.62, 0.2, 1 },
+    bg = { 0.16, 0.09, 0.02, 0.95 },
+    border = { 0.95, 0.55, 0.12, 1 },
+    setting = "blacklistAlerts",
+    cooldown = 60,
+  },
+}
+
+local lists = { kos = { map = {}, at = 0 }, blacklist = { map = {}, at = 0 } }
 local lastAlert = {}
 local popup
 
-local function enabled()
-  return CWC_Account and CWC_Account.settings and CWC_Account.settings.kosAlerts ~= false
-    and (not CWC.IsGuildMember or CWC.IsGuildMember())
+local function enabled(kind)
+  local s = CWC_Account and CWC_Account.settings
+  return s ~= nil and s[KINDS[kind].setting] ~= false and (not CWC.IsGuildMember or CWC.IsGuildMember())
 end
 
 local function key(name)
   if type(name) ~= "string" or name == "" then return nil end
+  if issecretvalue and issecretvalue(name) then return nil end
   return string.lower(strtrim((name:gsub("%-.*$", ""))))
 end
 
--- Approved Kill on Sight entries, by lower-case full name ("john doe").
-local function approvedList()
-  if time() - builtAt < REBUILD_EVERY then return lookup end
-  lookup = {}
-  for _, item in ipairs(CWC.RequestStore and CWC.RequestStore("kos") or {}) do
+-- Approved entries for a list, by lower-case full name ("john doe").
+local function approved(kind)
+  local l = lists[kind]
+  if time() - l.at < REBUILD_EVERY then return l.map end
+  l.map = {}
+  for _, item in ipairs(CWC.RequestStore and CWC.RequestStore(kind) or {}) do
     local k = key(item.name)
-    if k and item.status == "approved" then lookup[k] = item end
+    if k and item.status == "approved" then l.map[k] = item end
   end
-  builtAt = time()
-  return lookup
+  l.at = time()
+  return l.map
 end
 
 local function buildPopup()
-  popup = CreateFrame("Button", "CWCKillOnSightAlert", UIParent, "BackdropTemplate")
-  popup:SetSize(400, 100)
+  popup = CreateFrame("Button", "CWCAlertPopup", UIParent, "BackdropTemplate")
+  popup:SetSize(420, 104)
   popup:SetPoint("TOP", UIParent, "TOP", 0, -150)
   popup:SetFrameStrata("DIALOG")
   popup:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
-  popup:SetBackdropColor(0.16, 0.03, 0.03, 0.95)
-  popup:SetBackdropBorderColor(0.9, 0.15, 0.12, 1)
   popup:Hide()
 
-  local icon = popup:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(56, 56)
-  icon:SetPoint("LEFT", 16, 0)
-  icon:SetTexture("Interface\\PVPFrame\\PVP-Currency-Horde")
+  popup.icon = popup:CreateTexture(nil, "ARTWORK")
+  popup.icon:SetSize(56, 56)
+  popup.icon:SetPoint("LEFT", 16, 0)
 
-  popup.title = T.Text(popup, "heading", 18, { 1, 0.3, 0.25, 1 })
+  popup.title = T.Text(popup, "heading", 18, { 1, 1, 1, 1 })
   popup.title:SetPoint("TOPLEFT", 86, -14)
-  popup.title:SetText("KILL ON SIGHT")
 
-  popup.name = T.Text(popup, "bold", 15, T.c.gold)
-  popup.name:SetPoint("TOPLEFT", popup.title, "BOTTOMLEFT", 0, -6)
+  popup.line = T.Text(popup, "bold", 15, T.c.gold)
+  popup.line:SetPoint("TOPLEFT", popup.title, "BOTTOMLEFT", 0, -6)
+  popup.line:SetWidth(316)
 
   popup.reason = T.Text(popup, "body", 12, T.c.cream)
-  popup.reason:SetPoint("TOPLEFT", popup.name, "BOTTOMLEFT", 0, -4)
-  popup.reason:SetWidth(296)
+  popup.reason:SetPoint("TOPLEFT", popup.line, "BOTTOMLEFT", 0, -4)
+  popup.reason:SetWidth(316)
   popup.reason:SetWordWrap(true)
   if popup.reason.SetMaxLines then popup.reason:SetMaxLines(2) end
 
@@ -73,56 +93,106 @@ local function buildPopup()
   popup:SetScript("OnClick", function(self) self:Hide() end)
 end
 
-local function showAlert(item, seenName)
+local function showAlert(kind, item, line)
+  local k = KINDS[kind]
   if not popup then buildPopup() end
-  popup.name:SetText((seenName or item.name or "?") .. " is nearby")
+  popup:SetBackdropColor(k.bg[1], k.bg[2], k.bg[3], k.bg[4])
+  popup:SetBackdropBorderColor(k.border[1], k.border[2], k.border[3], k.border[4])
+  popup.icon:SetTexture(k.icon)
+  popup.title:SetText(k.title)
+  popup.title:SetTextColor(k.titleColour[1], k.titleColour[2], k.titleColour[3], 1)
+  popup.line:SetText(line)
   popup.reason:SetText(item.reason or "")
-  popup:SetAlpha(1)
   popup:Show()
   popup.shownAt = GetTime()
   local shownAt = popup.shownAt
   C_Timer.After(SHOW_FOR, function()
     if popup.shownAt == shownAt then popup:Hide() end
   end)
-  if SOUNDKIT and SOUNDKIT.RAID_WARNING then
-    pcall(PlaySound, SOUNDKIT.RAID_WARNING, "Master")
-  end
-  CWC.Print("|cffff5050Kill on Sight:|r " .. (seenName or item.name or "?") .. " is nearby. " .. (item.reason or ""))
+  if SOUNDKIT and SOUNDKIT.RAID_WARNING then pcall(PlaySound, SOUNDKIT.RAID_WARNING, "Master") end
+  local colour = kind == "kos" and "|cffff5050" or "|cffffa040"
+  CWC.Print(colour .. k.title .. ":|r " .. line .. ". " .. (item.reason or ""))
 end
 
--- Checks one name against the approved list and alerts, respecting the per-player cooldown.
-local function checkName(name)
-  if not enabled() then return end
+-- Checks a name against a list and alerts. "what" describes the contact, e.g. "%s whispered you".
+local function check(kind, name, what, cooldown)
+  if not enabled(kind) then return end
   local k = key(name)
-  if not k then return end
-  local item = approvedList()[k]
+  if not k or k == key(CWC.PlayerName()) then return end
+  local item = approved(kind)[k]
   if not item then return end
+  local tag = kind .. ":" .. k .. ":" .. what
   local now = GetTime()
-  if lastAlert[k] and now - lastAlert[k] < COOLDOWN then return end
-  lastAlert[k] = now
-  showAlert(item, name)
+  if lastAlert[tag] and now - lastAlert[tag] < (cooldown or KINDS[kind].cooldown) then return end
+  lastAlert[tag] = now
+  showAlert(kind, item, string.format(what, item.name or name))
 end
 
--- The game can hide some unit details during combat ("secret" values). Those are skipped, and any
--- unexpected error is contained so it can never interrupt play.
-local function readUnitName(unit)
+local function safeCheck(kind, name, what, cooldown)
+  pcall(check, kind, name, what, cooldown)
+end
+
+-- Reads a unit's full name, skipping units the game hides during combat.
+local function unitName(unit)
   if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsUnit(unit, "player") then return nil end
   local name = GetUnitName(unit, true)
   if issecretvalue and issecretvalue(name) then return nil end
   return name
 end
 
-local function checkUnit(unit)
-  local ok, name = pcall(readUnitName, unit)
-  if ok and name then pcall(checkName, name) end
+local function checkUnit(kind, unit, what)
+  local ok, name = pcall(unitName, unit)
+  if ok and name then safeCheck(kind, name, what) end
 end
 
-CWC.On("NAME_PLATE_UNIT_ADDED", function(unit) checkUnit(unit) end)
-CWC.On("PLAYER_TARGET_CHANGED", function() checkUnit("target") end)
-CWC.On("UPDATE_MOUSEOVER_UNIT", function() checkUnit("mouseover") end)
+-- Kill on Sight: in view.
+CWC.On("NAME_PLATE_UNIT_ADDED", function(unit) checkUnit("kos", unit, "%s is nearby") end)
+CWC.On("PLAYER_TARGET_CHANGED", function() checkUnit("kos", "target", "%s is nearby") end)
+CWC.On("UPDATE_MOUSEOVER_UNIT", function() checkUnit("kos", "mouseover", "%s is nearby") end)
 
+-- Blacklist: direct contact only.
+CWC.On("CHAT_MSG_WHISPER", function(_, sender) safeCheck("blacklist", sender, "%s whispered you") end)
+CWC.On("PARTY_INVITE_REQUEST", function(inviter) safeCheck("blacklist", inviter, "%s invited you to a group") end)
+CWC.On("TRADE_SHOW", function() checkUnit("blacklist", "NPC", "%s opened a trade with you") end)
 
--- Settings > Test: shows the alert with a sample entry, so players know what to expect.
+-- In your group: alert once when they are first seen in the group, again only if they leave and come back.
+local inGroup = {}
+CWC.On("GROUP_ROSTER_UPDATE", function()
+  local seen = {}
+  local prefix, count = "party", 4
+  if IsInRaid and IsInRaid() then prefix, count = "raid", 40 end
+  if (IsInGroup and IsInGroup()) or prefix == "raid" then
+    for i = 1, count do
+      local ok, name = pcall(unitName, prefix .. i)
+      local k = ok and key(name) or nil
+      if k then
+        seen[k] = true
+        if not inGroup[k] then safeCheck("blacklist", name, "%s is in your group", 0) end
+      end
+    end
+  end
+  inGroup = seen
+end)
+
+-- Mail: checks the inbox when it updates, and warns after sending mail to them.
+CWC.On("MAIL_INBOX_UPDATE", function()
+  if not GetInboxNumItems or not GetInboxHeaderInfo then return end
+  for i = 1, GetInboxNumItems() do
+    local ok, _, _, sender = pcall(GetInboxHeaderInfo, i)
+    if ok and sender then safeCheck("blacklist", sender, "You have mail from %s", 600) end
+  end
+end)
+if hooksecurefunc and SendMail then
+  hooksecurefunc("SendMail", function(recipient)
+    safeCheck("blacklist", recipient, "You just sent mail to %s", 0)
+  end)
+end
+
+-- Settings > Test buttons: show each alert with a sample entry.
 function CWC.TestKOSAlert()
-  showAlert({ name = "John Doe", reason = "This is a test alert. Real alerts only fire for approved Kill on Sight entries." }, "John Doe")
+  showAlert("kos", { reason = "This is a test alert. Real alerts only fire for approved Kill on Sight entries." }, "John Doe is nearby")
+end
+
+function CWC.TestBlacklistAlert()
+  showAlert("blacklist", { reason = "This is a test alert. Real alerts only fire for approved Blacklist entries." }, "John Doe whispered you")
 end

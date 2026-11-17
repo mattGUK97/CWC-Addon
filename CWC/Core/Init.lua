@@ -1,6 +1,6 @@
 local ADDON, CWC = ...
 
-CWC.version = "0.9.2"
+CWC.version = "0.9.3"
 CWC.dataVersion = 1
 CWC.guildRuleset = "PvP"
 CWC.logoPath = "Interface\\AddOns\\CWC\\media\\cwc-logo.tga"
@@ -17,7 +17,8 @@ end)
 function CWC.On(event, fn)
   if not CWC.handlers[event] then
     CWC.handlers[event] = {}
-    CWC.frame:RegisterEvent(event)
+    -- An event this game version doesn't have is skipped, rather than stopping the addon loading.
+    pcall(CWC.frame.RegisterEvent, CWC.frame, event)
   end
   table.insert(CWC.handlers[event], fn)
 end

@@ -164,9 +164,23 @@ local function applyDenial(id, key, approver)
   whenRankKnown(approver, 5, function(r)
     if r > 1 then return end
     local item = findById(CWC.RequestStore(key), id)
-    if not item or item.status == "denied" then return end
+    if not item or item.status == "denied" or item.status == "removed" then return end
     item.status = "denied"
     item.deniedBy = approver
+    refreshUI(key)
+  end)
+end
+
+-- An approved entry removed by the Guild Master or an Officer. Removal is final: a later approval
+-- message for the same entry is ignored.
+local function applyEntryRemoval(id, key, by)
+  if not KEYS[key] then return end
+  whenRankKnown(by, 5, function(r)
+    if r > 1 then return end
+    local item = findById(CWC.RequestStore(key), id)
+    if not item or item.status == "removed" then return end
+    item.status = "removed"
+    item.removedBy = by
     refreshUI(key)
   end)
 end
@@ -176,7 +190,7 @@ local function applyApproval(id, key, approver)
   whenRankKnown(approver, 5, function(r)
     if r > 1 then return end
     local item = findById(CWC.RequestStore(key), id)
-    if not item or item.status == "approved" then return end
+    if not item or item.status ~= "pending" then return end
     item.status = "approved"
     item.approvedBy = approver
     refreshUI(key)
@@ -202,6 +216,9 @@ local function dumpTo(target)
       end
       if item.status == "denied" and item.deniedBy then
         send("DEN|" .. clean(item.id) .. "|" .. key .. "|" .. clean(item.deniedBy), target)
+      end
+      if item.status == "removed" and item.removedBy then
+        send("RMV|" .. clean(item.id) .. "|" .. key .. "|" .. clean(item.removedBy), target)
       end
     end
   end
@@ -418,6 +435,9 @@ local function onAddonMessage(prefix, msg, channel, sender)
   elseif string.sub(msg, 1, 4) == "DEN|" then
     local p = split(msg, 3) -- DEN, id, key, approver
     applyDenial(p[2], p[3], p[4])
+  elseif string.sub(msg, 1, 4) == "RMV|" then
+    local p = split(msg, 3) -- RMV, id, key, by
+    applyEntryRemoval(p[2], p[3], p[4])
   elseif string.sub(msg, 1, 4) == "APP|" then
     local p = split(msg, 3) -- APP, id, key, approver
     applyApproval(p[2], p[3], p[4])
@@ -480,6 +500,21 @@ function CWC.DenyRequest(key, id, approver)
   item.status = "denied"
   item.deniedBy = approver
   send("DEN|" .. clean(id) .. "|" .. key .. "|" .. clean(approver))
+  return true
+end
+
+-- Guild Master or Officer: removes an approved Kill on Sight or Blacklist entry for everyone.
+function CWC.RemoveRequest(key, id, by)
+  local me = CWC_Characters and CWC_Characters[CWC.PlayerName() or ""]
+  if not me or not (me.role == "Guild Master" or me.role == "Officer") then
+    CWC.Print("Only the Guild Master and Officers can remove entries.")
+    return false
+  end
+  local item = findById(CWC.RequestStore(key), id)
+  if not item then return false end
+  item.status = "removed"
+  item.removedBy = by
+  send("RMV|" .. clean(id) .. "|" .. key .. "|" .. clean(by))
   return true
 end
 

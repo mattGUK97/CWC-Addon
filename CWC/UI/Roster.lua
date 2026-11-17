@@ -2,7 +2,10 @@ local ADDON, CWC = ...
 local T = CWC.Theme
 
 local ROW_H = 44
-local CARD_W = 252
+local CARD_W = 224
+local KV_VALUE_W = CARD_W - 28 - 84   -- room for a value beside its label; longer values wrap
+local KV_STEP, KV_STEP_WRAPPED = 22, 36
+local PROF_STEP = 32
 local GAP = 14
 local HEAD_Y = -44
 local MIN_LIST_W = 770
@@ -16,7 +19,8 @@ local COLS = {
   { key = "status", label = "Status", x = 490, w = 170 },
   { key = "experience", label = "Experience", x = 660, w = 0 },
 }
-local CARD_KEYS = { "LEVEL", "ITEM LEVEL", "SPEC", "GUILD", "RANK", "ROLE", "STATUS", "EXPERIENCE" }
+-- No GUILD row: CWC is guild-only, so everyone on the roster is in Coping with Caffeine.
+local CARD_KEYS = { "LEVEL", "ITEM LEVEL", "SPEC", "RANK", "ROLE", "STATUS", "EXPERIENCE" }
 
 -- A race or class is only shown when it is real text. Anything missing reads "Unknown", never a number or "?".
 local function knownText(v)
@@ -348,62 +352,75 @@ local function buildCard(parent)
   c:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
   c:SetWidth(CARD_W)
 
-  -- Circular portrait in a gold ring, as in FlareUI's right-hand panel.
+  -- Circular portrait in a gold ring, centred, with space between it and the top of the card.
   local portrait = c:CreateTexture(nil, "ARTWORK")
-  portrait:SetSize(136, 136)
-  portrait:SetPoint("TOP", c, "TOP", 0, -2)
+  portrait:SetSize(116, 116)
+  portrait:SetPoint("TOP", c, "TOP", 0, -14)
   portrait:SetTexture(T.portrait)
 
   c.classIcon = c:CreateTexture(nil, "OVERLAY")
-  c.classIcon:SetSize(34, 34)
-  c.classIcon:SetPoint("CENTER", portrait, "BOTTOMRIGHT", -14, 14)
+  c.classIcon:SetSize(30, 30)
+  c.classIcon:SetPoint("CENTER", portrait, "BOTTOMRIGHT", -12, 12)
 
   c.name = T.Text(c, "bold", 14, T.c.gold)
   c.name:SetPoint("TOP", portrait, "BOTTOM", 0, -10)
+  c.name:SetWidth(CARD_W - 28)
   c.name:SetJustifyH("CENTER")
+  c.name:SetWordWrap(true)
+  if c.name.SetMaxLines then c.name:SetMaxLines(2) end
   c.sub = T.Text(c, "body", 12, T.c.muted)
   c.sub:SetPoint("TOP", c.name, "BOTTOM", 0, -3)
+  c.sub:SetWidth(CARD_W - 28)
   c.sub:SetJustifyH("CENTER")
+  c.sub:SetWordWrap(true)
+  if c.sub.SetMaxLines then c.sub:SetMaxLines(2) end
 
-  local rule = T.Rule(c, 0.35)
-  rule:SetPoint("TOPLEFT", 14, -200)
-  rule:SetPoint("TOPRIGHT", -14, -200)
+  c.rule = T.Rule(c, 0.35)
+  c.rule:SetPoint("TOPLEFT", c.sub, "BOTTOMLEFT", 0, -10)
+  c.rule:SetPoint("TOPRIGHT", c.sub, "BOTTOMRIGHT", 0, -10)
 
   c.kv = {}
   for i, key in ipairs(CARD_KEYS) do
-    local y = -212 - (i - 1) * 17
     local k = T.Text(c, "bold", 11, T.c.muted)
-    k:SetPoint("TOPLEFT", 14, y)
     k:SetText(key)
     local v = T.Text(c, "body", 12, T.c.cream)
-    v:SetPoint("TOPRIGHT", -14, y)
+    v:SetWidth(KV_VALUE_W)
     v:SetJustifyH("RIGHT")
+    v:SetWordWrap(true)
+    if v.SetMaxLines then v:SetMaxLines(2) end
+    local off = 10 + (i - 1) * KV_STEP
+    k:SetPoint("TOPLEFT", c.rule, "BOTTOMLEFT", 0, -off)
+    v:SetPoint("TOPRIGHT", c.rule, "BOTTOMRIGHT", 0, -off)
     c.kv[i] = { k = k, v = v }
   end
 
   c.profTitle = T.Text(c, "bold", 11, T.c.gold)
-  c.profTitle:SetPoint("TOPLEFT", 14, -348)
+  c.profTitle:SetPoint("TOPLEFT", c.rule, "BOTTOMLEFT", 0, -(10 + #CARD_KEYS * KV_STEP + 8))
 
+  -- Each profession is a small row frame under the PROFESSIONS heading.
   c.profRows = {}
   for i = 1, PROF_ROWS do
-    local y = -360 - (i - 1) * 36
     local pr = {}
-    pr.icon = c:CreateTexture(nil, "ARTWORK")
+    pr.frame = CreateFrame("Frame", nil, c)
+    pr.frame:SetSize(CARD_W - 28, 26)
+    pr.frame:SetPoint("TOPLEFT", c.profTitle, "BOTTOMLEFT", 0, -(8 + (i - 1) * PROF_STEP))
+    pr.icon = pr.frame:CreateTexture(nil, "ARTWORK")
     pr.icon:SetSize(18, 18)
-    pr.icon:SetPoint("TOPLEFT", 14, y)
-    pr.name = T.Text(c, "body", 12)
-    pr.name:SetPoint("TOPLEFT", 40, y - 1)
-    pr.skill = T.Text(c, "bold", 12, T.c.gold)
-    pr.skill:SetPoint("TOPRIGHT", -14, y - 1)
+    pr.icon:SetPoint("TOPLEFT", 0, 0)
+    pr.name = T.Text(pr.frame, "body", 12)
+    pr.name:SetPoint("TOPLEFT", 26, -1)
+    pr.skill = T.Text(pr.frame, "bold", 12, T.c.gold)
+    pr.skill:SetPoint("TOPRIGHT", 0, -1)
     pr.skill:SetJustifyH("RIGHT")
-    pr.track = c:CreateTexture(nil, "ARTWORK")
+    pr.track = pr.frame:CreateTexture(nil, "ARTWORK")
     pr.track:SetColorTexture(1, 1, 1, 0.07)
     pr.track:SetSize(CARD_W - 54, 4)
-    pr.track:SetPoint("TOPLEFT", 40, y - 20)
-    pr.fill = c:CreateTexture(nil, "OVERLAY")
+    pr.track:SetPoint("TOPLEFT", 26, -20)
+    pr.fill = pr.frame:CreateTexture(nil, "OVERLAY")
     pr.fill:SetColorTexture(T.c.gold[1], T.c.gold[2], T.c.gold[3], 1)
     pr.fill:SetHeight(4)
     pr.fill:SetPoint("TOPLEFT", pr.track, "TOPLEFT", 0, 0)
+    pr.frame:Hide()
     c.profRows[i] = pr
   end
 
@@ -447,11 +464,7 @@ local function buildCard(parent)
 end
 
 local function hideProfRow(pr)
-  pr.icon:Hide()
-  pr.name:Hide()
-  pr.skill:Hide()
-  pr.track:Hide()
-  pr.fill:Hide()
+  pr.frame:Hide()
 end
 
 local function fillCard(rec)
@@ -479,49 +492,70 @@ local function fillCard(rec)
   card.profTitle:Show()
   setIcon(card.classIcon, T.ClassIcon(rec.classFile))
   card.name:SetTextColor(T.ClassColour(rec.classFile))
-  T.Fit(card.name, rec.name or "?", CARD_W - 86)
+  card.name:SetText(rec.name or "?")
   local classText = knownText(rec.className) and rec.className or ""
   local subText = (knownText(rec.race) or classText ~= "") and (raceText(rec) .. " " .. classText) or "Race and class not received yet"
-  T.Fit(card.sub, subText, CARD_W - 86)
+  card.sub:SetText(subText)
 
   local values = {
     rec.level and tostring(rec.level) or "-",
     rec.itemLevel and tostring(rec.itemLevel) or "-",
     rec.spec or "-",
-    rec.guild or "None",
     rec.rank or "-",
     rec.role or "-",
     statusText(rec),
     experienceOf(rec) or "-",
   }
+  local off = 10
   for i, kv in ipairs(card.kv) do
+    local text = tostring(values[i])
     kv.k:SetText(CARD_KEYS[i])
-    T.Fit(kv.v, values[i], 150)
+    kv.v:SetText(text)
+    kv.k:ClearAllPoints()
+    kv.k:SetPoint("TOPLEFT", card.rule, "BOTTOMLEFT", 0, -off)
+    kv.v:ClearAllPoints()
+    kv.v:SetPoint("TOPRIGHT", card.rule, "BOTTOMRIGHT", 0, -off)
+    off = off + ((T.Measure(kv.v, text) > KV_VALUE_W) and KV_STEP_WRAPPED or KV_STEP)
+  end
+  card.profTitle:ClearAllPoints()
+  card.profTitle:SetPoint("TOPLEFT", card.rule, "BOTTOMLEFT", 0, -(off + 8))
+
+  -- Work out how many profession rows fit above the "Scanned" line at the bottom of the card.
+  local nameLines = T.Measure(card.name, rec.name or "?") > CARD_W - 28 and 2 or 1
+  local subLines = T.Measure(card.sub, subText) > CARD_W - 28 and 2 or 1
+  local titleY = 14 + 116 + 10 + nameLines * 17 + 3 + subLines * 15 + 10 + 1 + off + 8
+  local cardH = card:GetHeight() or 0
+  local fits = PROF_ROWS
+  if cardH > 0 then
+    fits = math.floor((cardH - 34 - titleY - 14 - 8 - 26) / PROF_STEP) + 1
+    fits = math.max(0, math.min(PROF_ROWS, fits))
   end
 
   local profs = profList(rec)
   for i, pr in ipairs(card.profRows) do
     local p = profs[i]
-    if p then
+    if p and i <= fits then
       pr.icon:SetTexture(T.ProfIcon(p.name))
-      pr.icon:Show()
-      pr.name:Show()
-      T.Fit(pr.name, p.name, CARD_W - 140)
+      T.Fit(pr.name, p.name, CARD_W - 28 - 26 - 66)
       pr.skill:SetText(tostring(p.skill) .. " / " .. tostring(p.max))
-      pr.skill:Show()
       local frac = 0
       if p.max and p.max > 0 then frac = math.min(1, (p.skill or 0) / p.max) end
-      pr.track:Show()
-      pr.fill:Show()
       pr.fill:SetWidth(math.max(1, (CARD_W - 54) * frac))
+      pr.frame:Show()
     else
       hideProfRow(pr)
     end
   end
-  card.profTitle:SetText(#profs == 0 and "PROFESSIONS (NONE RECORDED)" or "PROFESSIONS")
+  if #profs == 0 then
+    card.profTitle:SetText("PROFESSIONS (NONE RECORDED)")
+  elseif #profs > fits then
+    card.profTitle:SetText("PROFESSIONS (" .. fits .. " OF " .. #profs .. ", MAKE THE WINDOW TALLER)")
+  else
+    card.profTitle:SetText("PROFESSIONS")
+  end
 
   if rec.lastScanned then
-    card.scanned:SetText("Scanned " .. date("%d %b %Y, %H:%M", rec.lastScanned))
+    card.scanned:SetText("Scanned " .. date("%d %b, %H:%M", rec.lastScanned))
   else
     card.scanned:SetText("")
   end

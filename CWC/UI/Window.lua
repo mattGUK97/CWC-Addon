@@ -4,7 +4,7 @@ local T = CWC.Theme
 -- Wide enough for every roster column plus the character card, so nothing has to be cut off.
 local MIN_W, MIN_H = 1280, 640
 local MAX_W, MAX_H = 1700, 950
-local DEF_W, DEF_H = 1300, 700
+local DEF_W, DEF_H = 1300, 760
 local HEADER_H, FOOTER_H, SIDE_W, PAD = 96, 30, 212, 14
 local BANNER_H = 52
 local CONTENT_X = SIDE_W + PAD
@@ -90,6 +90,10 @@ local function makeListRow(parent)
   r.deny = T.Button(r, "Deny", 80, nil, false)
   r.deny:SetPoint("RIGHT", r, "RIGHT", -216, 0)
 
+  -- Guild Master and Officers: remove an approved entry.
+  r.remove = T.Button(r, "Remove", 96, nil, false)
+  r.remove:SetPoint("RIGHT", r, "RIGHT", -112, 0)
+
   r.badge = T.Badge(r, T.c.gold)
   r.badge:SetSize(92, 18)
   r.badge:SetPoint("RIGHT", r, "RIGHT", -10, 0)
@@ -116,10 +120,12 @@ local function fillListRow(r, item, key)
     r.faction:Hide()
   end
   local approved = item.status == "approved"
-  local buttons = canApprove() and not approved
+  local officer = canApprove()
+  local reserve = 120
+  if officer then reserve = approved and 224 or 320 end
   r.reason:ClearAllPoints()
   r.reason:SetPoint("TOPLEFT", 42, -28)
-  r.reason:SetPoint("RIGHT", r, "RIGHT", buttons and -320 or -120, 0)
+  r.reason:SetPoint("RIGHT", r, "RIGHT", -reserve, 0)
   r.reason:SetText(item.reason or "")
   local when = item.date and date("%d %b %Y", item.date) or ""
   local meta = "Added by " .. (item.by or "?") .. (when ~= "" and ("  ·  " .. when) or "")
@@ -139,6 +145,24 @@ local function fillListRow(r, item, key)
     CWC.RefreshList(key)
     CWC.RefreshSidebar()
   end)
+  r.remove:SetShown(officer and approved)
+  r.remove:SetScript("OnClick", function()
+    local listName = key == "kos" and "Kill on Sight" or "Blacklist"
+    CWC.ShowDialog({
+      title = "Remove this entry?",
+      text = "Remove " .. (item.name or "this player") .. " from the " .. listName .. " list for everyone?",
+      buttons = {
+        { label = "Remove", onClick = function()
+          if CWC.RemoveRequest(key, item.id, CWC.PlayerName() or "Unknown") then
+            CWC.Print((item.name or "Entry") .. " removed from the " .. listName .. " list. Sent to online guild members.")
+          end
+          CWC.RefreshList(key)
+          CWC.RefreshSidebar()
+        end },
+        { label = CANCEL or "Cancel" },
+      },
+    })
+  end)
   r.deny:SetShown(canApprove() and not approved)
   r.deny:SetScript("OnClick", function()
     if CWC.DenyRequest(key, item.id, CWC.PlayerName() or "Unknown") then
@@ -156,7 +180,7 @@ function CWC.RefreshList(key)
   local all = requestStore(key)
   local items = {}
   for _, it in ipairs(all) do
-    if it.status ~= "denied" then table.insert(items, it) end
+    if it.status ~= "denied" and it.status ~= "removed" then table.insert(items, it) end
   end
   local empty = #items == 0
   u.mark:SetShown(empty)
@@ -489,7 +513,7 @@ local function settingsCheck(parent, y, label, key, extra)
   return cb
 end
 
-local ROW1_H = 200
+local ROW1_H = 226
 
 local function buildSettings(page)
   local h = T.Text(page, "heading", 20, T.c.gold)
@@ -505,8 +529,11 @@ local function buildSettings(page)
   settingsUI.kosAlerts = settingsCheck(general, -104, "Kill on Sight alerts (sound and pop-up)", "kosAlerts")
   local testAlert = T.Button(general, "Test", 56, function() CWC.TestKOSAlert() end)
   testAlert:SetPoint("TOPRIGHT", general, "TOPRIGHT", -48, -102)
+  settingsUI.blacklistAlerts = settingsCheck(general, -134, "Blacklist alerts (sound and pop-up)", "blacklistAlerts")
+  local testBlacklist = T.Button(general, "Test", 56, function() CWC.TestBlacklistAlert() end)
+  testBlacklist:SetPoint("TOPRIGHT", general, "TOPRIGHT", -48, -132)
   local openLabel = T.Text(general, "body", 13, T.c.muted)
-  openLabel:SetPoint("TOPLEFT", 16, -138)
+  openLabel:SetPoint("TOPLEFT", 16, -168)
   openLabel:SetText("Window opens on")
   settingsUI.openOn = T.Button(general, "", 260, function()
     local s = CWC_Account.settings
@@ -518,7 +545,7 @@ local function buildSettings(page)
     s.defaultTab = OPEN_ORDER[idx]
     CWC.RefreshSettings()
   end)
-  settingsUI.openOn:SetPoint("TOPLEFT", 16, -158)
+  settingsUI.openOn:SetPoint("TOPLEFT", 16, -188)
   settingsUI.general = general
 
   local sharing = T.Card(page)
@@ -617,6 +644,7 @@ function CWC.RefreshSettings()
   settingsUI.minimap:SetChecked(s.minimapShown)
   settingsUI.tooltips:SetChecked(s.showTooltips)
   settingsUI.kosAlerts:SetChecked(s.kosAlerts ~= false)
+  settingsUI.blacklistAlerts:SetChecked(s.blacklistAlerts ~= false)
   settingsUI.shareProfessions:SetChecked(s.shareProfessions)
   settingsUI.shareOnline:SetChecked(s.shareOnline)
   settingsUI.note:SetText(s.note or "")
@@ -667,7 +695,7 @@ function CWC.RefreshSidebar()
   local pending = 0
   for key in pairs(REQUEST_KEYS) do
     for _, item in ipairs(requestStore(key)) do
-      if item.status ~= "approved" then pending = pending + 1 end
+      if item.status == "pending" then pending = pending + 1 end
     end
   end
   local values = { tostring(total), tostring(mains), tostring(alts), tostring(pending), CWC.SyncStatus() }

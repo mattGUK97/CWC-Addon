@@ -82,8 +82,7 @@ end
 
 -- Shortens text with "..." so it fits inside maxWidth.
 local measure
-function T.Fit(fs, str, maxWidth)
-  str = tostring(str or "")
+local function getMeasure()
   if not measure then
     -- Measured on CWC's own invisible frame, so nothing is added to Blizzard's frames.
     local holder = CreateFrame("Frame", nil, UIParent)
@@ -93,6 +92,23 @@ function T.Fit(fs, str, maxWidth)
     measure:Show()
     measure:SetAlpha(0)
   end
+  return measure
+end
+
+-- Width of a string in a font string's font, or 0 when the font is not known yet.
+function T.Measure(fs, str)
+  local m = getMeasure()
+  local path, size, flags = fs:GetFont()
+  if not path and fs.cwcFont then path, size, flags = unpack(fs.cwcFont) end
+  if not path then return 0 end
+  m:SetFont(path, size, flags)
+  m:SetText(tostring(str or ""))
+  return m:GetStringWidth() or 0
+end
+
+function T.Fit(fs, str, maxWidth)
+  str = tostring(str or "")
+  getMeasure()
   local path, size, flags = fs:GetFont()
   if not path and fs.cwcFont then path, size, flags = unpack(fs.cwcFont) end
   if not path then
