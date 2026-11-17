@@ -1,0 +1,17 @@
+## Interface: 16001
+## Title: Coping with Caffeine (CWC)
+## Notes: Guild roster and shared lists for Coping with Caffeine.
+## Author: Coping with Caffeine
+## Version: 0.7.8
+## SavedVariables: CWC_Account, CWC_Characters
+
+Core\Init.lua
+Core\Store.lua
+Core\Scan.lua
+Core\Main.lua
+Core\Sync.lua
+UI\Theme.lua
+UI\Roster.lua
+UI\Window.lua
+UI\Minimap.lua
+UI\Setup.lua

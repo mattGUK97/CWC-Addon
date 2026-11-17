@@ -1,0 +1,237 @@
+local ADDON, CWC = ...
+local T = CWC.Theme
+
+local W, H = 520, 440
+local frame
+local pages = {}
+local c = {}
+local mode = "full"
+local pageIndex = 1
+local refreshTag
+
+local TITLES = {
+  welcome = "Welcome",
+  tag = "Your character",
+  sharing = "Sharing",
+  interface = "Interface",
+  finish = "All set",
+}
+
+local function currentKeys()
+  if mode == "full" then
+    return { "welcome", "tag", "sharing", "interface", "finish" }
+  end
+  return { "tag", "finish" }
+end
+
+local function newPage(key)
+  local p = CreateFrame("Frame", nil, frame)
+  p:SetPoint("TOPLEFT", 28, -150)
+  p:SetPoint("BOTTOMRIGHT", -28, 64)
+  p:Hide()
+  pages[key] = p
+  return p
+end
+
+local function para(parent, y, str, which, size, colour)
+  local fs = T.Text(parent, which or "body", size or 14, colour)
+  fs:SetPoint("TOPLEFT", 0, y)
+  fs:SetWidth(W - 56)
+  fs:SetWordWrap(true)
+  fs:SetText(str)
+  return fs
+end
+
+refreshTag = function()
+  local alt = c.isAlt:GetChecked()
+  c.altLabel:SetShown(alt)
+  c.altOf:SetShown(alt)
+end
+
+local function prepareSummary()
+  local rec = CWC_Characters[CWC.PlayerName() or ""] or {}
+  local lines = {}
+  local identity = (rec.name or "Your character") .. ": " .. (rec.race or "?") .. " " .. (rec.className or "?")
+  if rec.spec then identity = identity .. " (" .. rec.spec .. ")" end
+  table.insert(lines, identity)
+  local level = "Level " .. tostring(rec.level or "?")
+  if rec.itemLevel then level = level .. ", item level " .. rec.itemLevel end
+  table.insert(lines, level)
+  local profs = {}
+  for _, p in ipairs(rec.professions or {}) do table.insert(profs, p.name .. " " .. p.skill) end
+  if #profs > 0 then
+    table.insert(lines, "Professions: " .. table.concat(profs, ", "))
+  else
+    table.insert(lines, "Professions: none found")
+  end
+  local status = "Not set"
+  if c.isMain:GetChecked() then
+    status = "Main"
+  elseif c.isAlt:GetChecked() then
+    status = "Alt"
+  end
+  table.insert(lines, "Status: " .. status)
+  table.insert(lines, "")
+  table.insert(lines, "Press Finish to save. You can change any of this later from the CWC window's Settings tab.")
+  c.summary:SetText(table.concat(lines, "\n"))
+end
+
+local function showPage()
+  local keys = currentKeys()
+  if pageIndex < 1 then pageIndex = 1 end
+  for _, p in pairs(pages) do p:Hide() end
+  local key = keys[pageIndex]
+  pages[key]:Show()
+  frame.title:SetText(TITLES[key])
+  frame.step:SetText(pageIndex .. " of " .. #keys)
+  frame.back:SetEnabled(pageIndex > 1)
+  frame.next.text:SetText(pageIndex == #keys and "Finish" or "Next")
+  if key == "tag" then refreshTag() end
+  if key == "finish" then prepareSummary() end
+end
+
+local function prefill()
+  local s = CWC_Account.settings
+  local rec = CWC_Characters[CWC.PlayerName() or ""] or {}
+  c.isMain:SetChecked(rec.isMain == true)
+  c.isAlt:SetChecked(rec.isMain == false)
+  c.altOf:SetText(rec.mainOf or "")
+  c.shareProfessions:SetChecked(s.shareProfessions)
+  c.shareOnline:SetChecked(s.shareOnline)
+  c.note:SetText(s.note or "")
+  c.minimap:SetChecked(s.minimapShown)
+end
+
+local function save(skipped)
+  local a = CWC_Account
+  local s = a.settings
+  if mode == "full" then
+    s.shareProfessions = c.shareProfessions:GetChecked() and true or false
+    s.shareOnline = c.shareOnline:GetChecked() and true or false
+    s.note = strtrim(c.note:GetText() or "")
+    s.minimapShown = c.minimap:GetChecked() and true or false
+    a.setupComplete = true
+  end
+
+  local rec = CWC_Characters[CWC.PlayerName() or ""]
+  if rec then
+    if skipped then
+      rec.tagSkipped = true
+    else
+      if c.isMain:GetChecked() then
+        rec.isMain = true
+        rec.mainOf = nil
+      elseif c.isAlt:GetChecked() then
+        rec.isMain = false
+        local mainName = strtrim(c.altOf:GetText() or "")
+        rec.mainOf = mainName ~= "" and mainName or nil
+      else
+        rec.isMain = nil
+        rec.mainOf = nil
+      end
+      rec.tagged = true
+    end
+  end
+
+  CWC.SetMinimapShown(s.minimapShown)
+  CWC.RefreshRoster()
+  if CWC.RefreshSettings then CWC.RefreshSettings() end
+  frame:Hide()
+  if not skipped then CWC.Print("Setup saved.") end
+end
+
+local function build()
+  frame = T.Panel(UIParent, T.c.bg, T.c.line)
+  _G.CWCSetupFrame = frame
+  frame:SetSize(W, H)
+  frame:SetPoint("CENTER")
+  frame:SetFrameStrata("DIALOG")
+  frame:SetClampedToScreen(true)
+  frame:SetMovable(true)
+  frame:EnableMouse(true)
+  frame:RegisterForDrag("LeftButton")
+  frame:SetScript("OnDragStart", frame.StartMoving)
+  frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+  frame:Hide()
+  table.insert(UISpecialFrames, "CWCSetupFrame")
+
+  local logo = frame:CreateTexture(nil, "ARTWORK")
+  logo:SetSize(76, 76)
+  logo:SetPoint("TOP", 0, -16)
+  logo:SetTexture(CWC.logoPath)
+
+  frame.title = T.Text(frame, "heading", 20, T.c.gold)
+  frame.title:SetPoint("TOP", logo, "BOTTOM", 0, -8)
+  frame.title:SetWidth(W)
+  frame.title:SetJustifyH("CENTER")
+
+  frame.step = T.Text(frame, "body", 11, T.c.muted)
+  frame.step:SetPoint("TOPRIGHT", -16, -12)
+
+  local p = newPage("welcome")
+  para(p, 0, "CWC keeps the Coping with Caffeine roster and shared lists in your game.", "bold", 16)
+  para(p, -64, "It scans your character when you log in and keeps your details up to date. In this test build, nothing is shared with other players yet.")
+  para(p, -140, "You can change any of this later from the CWC window's Settings tab, or with /cwc setup.", "body", 12, T.c.muted)
+
+  p = newPage("tag")
+  para(p, 0, "Is this character your main, or an alt?", "bold", 16)
+  c.isMain = T.Check(p, "Main character", function(self)
+    if self:GetChecked() then c.isAlt:SetChecked(false) end
+    refreshTag()
+  end)
+  c.isMain:SetPoint("TOPLEFT", 0, -44)
+  c.isAlt = T.Check(p, "Alt character", function(self)
+    if self:GetChecked() then c.isMain:SetChecked(false) end
+    refreshTag()
+  end)
+  c.isAlt:SetPoint("TOPLEFT", 0, -76)
+  c.altLabel = para(p, -112, "Your main's character name (you can add it later):", "body", 13)
+  c.altOf = T.Input(p, 260, 48)
+  c.altOf:SetPoint("TOPLEFT", 0, -136)
+
+  p = newPage("sharing")
+  para(p, 0, "Choose what other guildmates can see. These apply once guild sync is switched on.")
+  c.shareProfessions = T.Check(p, "Share my professions and skill levels")
+  c.shareProfessions:SetPoint("TOPLEFT", 0, -56)
+  c.shareOnline = T.Check(p, "Share my online status and last seen time")
+  c.shareOnline:SetPoint("TOPLEFT", 0, -88)
+  para(p, -126, "Optional note shown beside your name (60 characters):", "body", 13)
+  c.note = T.Input(p, 360, 60)
+  c.note:SetPoint("TOPLEFT", 0, -150)
+
+  p = newPage("interface")
+  para(p, 0, "Choose how CWC appears.")
+  c.minimap = T.Check(p, "Show the minimap button")
+  c.minimap:SetPoint("TOPLEFT", 0, -40)
+
+  p = newPage("finish")
+  c.summary = para(p, 0, "")
+
+  frame.back = T.Button(frame, "Back", 110, function()
+    pageIndex = pageIndex - 1
+    showPage()
+  end)
+  frame.back:SetPoint("BOTTOMLEFT", 28, 22)
+
+  frame.skip = T.Button(frame, "Skip", 110, function() save(true) end)
+  frame.skip:SetPoint("BOTTOM", 0, 22)
+
+  frame.next = T.Button(frame, "Next", 110, function()
+    if pageIndex >= #currentKeys() then
+      save(false)
+    else
+      pageIndex = pageIndex + 1
+      showPage()
+    end
+  end, true)
+  frame.next:SetPoint("BOTTOMRIGHT", -28, 22)
+end
+
+function CWC.ShowSetup(newMode)
+  if not frame then build() end
+  mode = newMode or "full"
+  pageIndex = 1
+  prefill()
+  showPage()
+  frame:Show()
+end
