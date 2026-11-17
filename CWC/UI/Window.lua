@@ -1,9 +1,10 @@
 local ADDON, CWC = ...
 local T = CWC.Theme
 
-local MIN_W, MIN_H = 1040, 640
-local MAX_W, MAX_H = 1500, 950
-local DEF_W, DEF_H = 1120, 700
+-- Wide enough for every roster column plus the character card, so nothing has to be cut off.
+local MIN_W, MIN_H = 1280, 640
+local MAX_W, MAX_H = 1700, 950
+local DEF_W, DEF_H = 1300, 700
 local HEADER_H, FOOTER_H, SIDE_W, PAD = 96, 30, 212, 14
 local BANNER_H = 52
 local CONTENT_X = SIDE_W + PAD
@@ -488,7 +489,7 @@ local function settingsCheck(parent, y, label, key, extra)
   return cb
 end
 
-local ROW1_H = 186
+local ROW1_H = 200
 
 local function buildSettings(page)
   local h = T.Text(page, "heading", 20, T.c.gold)
@@ -501,8 +502,11 @@ local function buildSettings(page)
     CWC.SetMinimapShown(v)
   end)
   settingsUI.tooltips = settingsCheck(general, -74, "Show tooltips on roster rows", "showTooltips")
+  settingsUI.kosAlerts = settingsCheck(general, -104, "Kill on Sight alerts (sound and pop-up)", "kosAlerts")
+  local testAlert = T.Button(general, "Test", 56, function() CWC.TestKOSAlert() end)
+  testAlert:SetPoint("TOPRIGHT", general, "TOPRIGHT", -48, -102)
   local openLabel = T.Text(general, "body", 13, T.c.muted)
-  openLabel:SetPoint("TOPLEFT", 16, -116)
+  openLabel:SetPoint("TOPLEFT", 16, -138)
   openLabel:SetText("Window opens on")
   settingsUI.openOn = T.Button(general, "", 260, function()
     local s = CWC_Account.settings
@@ -514,7 +518,7 @@ local function buildSettings(page)
     s.defaultTab = OPEN_ORDER[idx]
     CWC.RefreshSettings()
   end)
-  settingsUI.openOn:SetPoint("TOPLEFT", 16, -138)
+  settingsUI.openOn:SetPoint("TOPLEFT", 16, -158)
   settingsUI.general = general
 
   local sharing = T.Card(page)
@@ -612,6 +616,7 @@ function CWC.RefreshSettings()
   local s = CWC_Account.settings
   settingsUI.minimap:SetChecked(s.minimapShown)
   settingsUI.tooltips:SetChecked(s.showTooltips)
+  settingsUI.kosAlerts:SetChecked(s.kosAlerts ~= false)
   settingsUI.shareProfessions:SetChecked(s.shareProfessions)
   settingsUI.shareOnline:SetChecked(s.shareOnline)
   settingsUI.note:SetText(s.note or "")

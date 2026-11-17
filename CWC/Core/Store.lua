@@ -14,5 +14,6 @@ function CWC.InitStore()
   if s.note == nil then s.note = "" end
   if s.minimapAngle == nil then s.minimapAngle = 220 end
   if s.defaultTab == nil then s.defaultTab = "roster" end
+  if s.kosAlerts == nil then s.kosAlerts = true end
   CWC_Characters = CWC_Characters or {}
 end

@@ -5,15 +5,16 @@ local ROW_H = 44
 local CARD_W = 252
 local GAP = 14
 local HEAD_Y = -44
-local MIN_LIST_W = 560
+local MIN_LIST_W = 770
 
 -- Column x positions are fixed; the status column takes whatever width is left.
 local COLS = {
-  { key = "name", label = "Character", x = 0, w = 220 },
-  { key = "prof", label = "Professions", x = 220, w = 128 },
-  { key = "race", label = "Race", x = 348, w = 96 },
-  { key = "level", label = "Lvl", x = 444, w = 40 },
-  { key = "status", label = "Status", x = 484, w = 0 },
+  { key = "name", label = "Character", x = 0, w = 200 },
+  { key = "prof", label = "Professions", x = 200, w = 128 },
+  { key = "race", label = "Race", x = 328, w = 122 },
+  { key = "level", label = "Lvl", x = 450, w = 40 },
+  { key = "status", label = "Status", x = 490, w = 170 },
+  { key = "experience", label = "Experience", x = 660, w = 0 },
 }
 local CARD_KEYS = { "LEVEL", "ITEM LEVEL", "SPEC", "GUILD", "RANK", "ROLE", "STATUS", "EXPERIENCE" }
 
@@ -81,7 +82,10 @@ local function statusText(rec)
   return "Untagged"
 end
 
+local EXP_RANK = { Master = 1, Veteran = 2, Experienced = 3, Novice = 4, Newbie = 5 }
+
 local function sortValue(rec, key)
+  if key == "experience" then return EXP_RANK[experienceOf(rec) or ""] or 9 end
   if key == "prof" then return profNames(rec) end
   if key == "race" then return rec.race or "" end
   if key == "level" then return rec.level or 0 end
@@ -180,6 +184,8 @@ local function makeRow()
   r.classIcon:SetPoint("LEFT", COLS[1].x + 12, 0)
   r.name = T.Text(r, "bold", 13)
   r.name:SetPoint("LEFT", COLS[1].x + 48, 0)
+  r.name:SetWordWrap(true)
+  if r.name.SetMaxLines then r.name:SetMaxLines(2) end
 
   -- Profession icons only, so the roster shows who has what at a glance. Up to five fit.
   r.profs = {}
@@ -202,6 +208,11 @@ local function makeRow()
 
   r.status = T.Text(r, "bold", 12)
   r.status:SetPoint("LEFT", COLS[5].x + 12, 0)
+  r.status:SetWordWrap(true)
+  if r.status.SetMaxLines then r.status:SetMaxLines(2) end
+
+  r.experience = T.Text(r, "body", 12)
+  r.experience:SetPoint("LEFT", COLS[6].x + 12, 0)
 
   r.line = r:CreateTexture(nil, "BORDER")
   r.line:SetColorTexture(0.2, 0.16, 0.11, 1)
@@ -253,7 +264,8 @@ local function fillRow(r, rec, index)
 
   setIcon(r.classIcon, T.ClassIcon(rec.classFile))
   r.name:SetTextColor(T.ClassColour(rec.classFile))
-  T.Fit(r.name, rec.name or "?", COLS[1].w - 58)
+  r.name:SetWidth(COLS[1].w - 58)
+  r.name:SetText(rec.name or "?")
 
   local profs = profList(rec)
   for i, pf in ipairs(r.profs) do
@@ -279,7 +291,13 @@ local function fillRow(r, rec, index)
   if rec.isMain == true then colour = T.c.gold end
   if rec.isMain == nil then colour = T.c.muted end
   r.status:SetTextColor(colour[1], colour[2], colour[3], 1)
-  T.Fit(r.status, statusText(rec), COLS[5].w - 22)
+  r.status:SetWidth(COLS[5].w - 22)
+  r.status:SetText(statusText(rec))
+
+  local exp = experienceOf(rec)
+  local ec = exp and T.c.cream or T.c.muted
+  r.experience:SetTextColor(ec[1], ec[2], ec[3], 1)
+  T.Fit(r.experience, exp or "-", math.max(60, COLS[6].w - 22))
 
   r:UpdateStripe()
 end
@@ -515,11 +533,11 @@ end
 function CWC.LayoutRoster(contentW)
   if not page then return end
   listW = math.max(MIN_LIST_W, contentW - CARD_W - GAP)
-  COLS[5].w = listW - COLS[5].x
+  COLS[6].w = listW - COLS[6].x
   scroll:SetWidth(listW)
   child:SetWidth(listW)
   headerRule:SetWidth(listW)
-  headers.status:SetWidth(COLS[5].w)
+  headers.experience:SetWidth(COLS[6].w)
   for _, r in ipairs(rows) do r:SetWidth(listW) end
   CWC.RefreshRoster()
 end

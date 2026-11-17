@@ -1,6 +1,6 @@
 local ADDON, CWC = ...
 
-CWC.version = "0.8.2"
+CWC.version = "0.9.0"
 CWC.dataVersion = 1
 CWC.guildRuleset = "PvP"
 CWC.logoPath = "Interface\\AddOns\\CWC\\media\\cwc-logo.tga"
