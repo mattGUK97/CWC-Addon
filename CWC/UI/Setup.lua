@@ -64,7 +64,10 @@ end
 refreshTag = function()
   local alt = c.isAlt:GetChecked()
   c.altLabel:SetShown(alt)
-  c.altOf:SetShown(alt)
+  c.altFirst:SetShown(alt)
+  c.altLast:SetShown(alt)
+  c.altFirstLabel:SetShown(alt)
+  c.altLastLabel:SetShown(alt)
 end
 
 local function prepareSummary()
@@ -115,7 +118,9 @@ local function prefill()
   local rec = CWC_Characters[CWC.PlayerName() or ""] or {}
   c.isMain:SetChecked(rec.isMain == true)
   c.isAlt:SetChecked(rec.isMain == false)
-  c.altOf:SetText(rec.mainOf or "")
+  local mf, ml = string.match(rec.mainOf or "", "^(%S+)%s+(.+)$")
+  c.altFirst:SetText(mf or rec.mainOf or "")
+  c.altLast:SetText(ml or "")
   c.shareProfessions:SetChecked(s.shareProfessions)
   c.shareOnline:SetChecked(s.shareOnline)
   c.note:SetText(s.note or "")
@@ -125,9 +130,22 @@ local function prefill()
   end
 end
 
+-- The main's name as "First Last", "" when both boxes are empty, or nil when only one is filled in.
+local function mainNameFromBoxes()
+  local first = (strtrim(c.altFirst:GetText() or "")):gsub("%s+", "")
+  local last = (strtrim(c.altLast:GetText() or "")):gsub("%s+", "")
+  if first == "" and last == "" then return "" end
+  if first == "" or last == "" then return nil end
+  return first .. " " .. last
+end
+
 local function save(skipped)
   local a = CWC_Account
   local s = a.settings
+  if not skipped and mode ~= "experience" and c.isAlt:GetChecked() and mainNameFromBoxes() == nil then
+    CWC.Print("Enter both your main's first and last name, or leave both empty to add them later.")
+    return
+  end
   if mode == "full" then
     s.shareProfessions = c.shareProfessions:GetChecked() and true or false
     s.shareOnline = c.shareOnline:GetChecked() and true or false
@@ -155,8 +173,8 @@ local function save(skipped)
         rec.mainOf = nil
       elseif c.isAlt:GetChecked() then
         rec.isMain = false
-        local mainName = strtrim(c.altOf:GetText() or "")
-        rec.mainOf = mainName ~= "" and mainName or nil
+        local mainName = mainNameFromBoxes()
+        rec.mainOf = (mainName and mainName ~= "") and mainName or nil
       else
         rec.isMain = nil
         rec.mainOf = nil
@@ -218,9 +236,19 @@ local function build()
     refreshTag()
   end)
   c.isAlt:SetPoint("TOPLEFT", 0, -76)
-  c.altLabel = para(p, -112, "Your main's character name (you can add it later):", "body", 13)
-  c.altOf = T.Input(p, 260, 48)
-  c.altOf:SetPoint("TOPLEFT", 0, -136)
+  c.altLabel = para(p, -112, "Your main's first and last name (you can add them later):", "body", 13)
+  c.altFirstLabel = T.Text(p, "bold", 11, T.c.muted)
+  c.altFirstLabel:SetPoint("TOPLEFT", 0, -136)
+  c.altFirstLabel:SetText("FIRST NAME")
+  c.altFirst = T.Input(p, 170, 24)
+  c.altFirst:SetPoint("TOPLEFT", 0, -152)
+  c.altLastLabel = T.Text(p, "bold", 11, T.c.muted)
+  c.altLastLabel:SetPoint("TOPLEFT", 182, -136)
+  c.altLastLabel:SetText("LAST NAME")
+  c.altLast = T.Input(p, 170, 24)
+  c.altLast:SetPoint("TOPLEFT", 182, -152)
+  c.altFirst:SetScript("OnTabPressed", function() c.altLast:SetFocus() end)
+  c.altLast:SetScript("OnTabPressed", function() c.altFirst:SetFocus() end)
 
   p = newPage("experience")
   para(p, 0, "How much World of Warcraft have you played?", "bold", 16)

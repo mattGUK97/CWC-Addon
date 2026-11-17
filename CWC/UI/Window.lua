@@ -49,9 +49,12 @@ end
 
 local APPROVED = { 0.5, 0.85, 0.5 }
 
+local ROW_H, ROW_STEP = 72, 78
+
 local function makeListRow(parent)
   local r = CreateFrame("Frame", nil, parent)
-  r:SetHeight(44)
+  r:SetHeight(ROW_H)
+  r:EnableMouse(true)
   r.bg = r:CreateTexture(nil, "BACKGROUND")
   r.bg:SetAllPoints()
   r.bg:SetColorTexture(1, 1, 1, 0.03)
@@ -61,9 +64,24 @@ local function makeListRow(parent)
   r.faction:SetPoint("LEFT", r, "LEFT", 12, 0)
   r.faction:Hide()
   r.name = T.Text(r, "bold", 13, T.c.cream)
-  r.name:SetPoint("TOPLEFT", 42, -7)
-  r.reason = T.Text(r, "body", 12, T.c.muted)
-  r.reason:SetPoint("BOTTOMLEFT", 42, 7)
+  r.name:SetPoint("TOPLEFT", 42, -8)
+  r.reason = T.Text(r, "body", 12, T.c.cream)
+  r.reason:SetWordWrap(true)
+  r.reason:SetJustifyV("TOP")
+  if r.reason.SetMaxLines then r.reason:SetMaxLines(2) end
+  r.meta = T.Text(r, "body", 11, T.c.muted)
+  r.meta:SetPoint("BOTTOMLEFT", 42, 8)
+
+  -- Hover shows the whole reason, however long it is.
+  r:SetScript("OnEnter", function(self)
+    if not self.item then return end
+    GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+    GameTooltip:AddLine(self.item.name or "?", 1, 1, 1)
+    GameTooltip:AddLine(self.item.reason or "", T.c.cream[1], T.c.cream[2], T.c.cream[3], true)
+    GameTooltip:AddLine(self.metaText or "", T.c.muted[1], T.c.muted[2], T.c.muted[3], true)
+    GameTooltip:Show()
+  end)
+  r:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
   r.approve = T.Button(r, "Approve", 96, nil, true)
   r.approve:SetPoint("RIGHT", r, "RIGHT", -112, 0)
@@ -82,9 +100,13 @@ local FACTION_ICONS = {
   Alliance = "Interface\\PVPFrame\\PVP-Currency-Alliance",
 }
 
+-- The guild is Alliance-only: Kill on Sight targets are Horde, and blacklisted players are Alliance.
+local LIST_FACTION = { kos = "Horde", blacklist = "Alliance" }
+
 local function fillListRow(r, item, key)
+  r.item = item
   r.name:SetText(item.name)
-  local faction = item.faction or (key == "kos" and "Horde" or nil)
+  local faction = item.faction or LIST_FACTION[key]
   local icon = faction and FACTION_ICONS[faction]
   if icon then
     r.faction:SetTexture(icon)
@@ -92,9 +114,17 @@ local function fillListRow(r, item, key)
   else
     r.faction:Hide()
   end
-  local when = item.date and date("%d %b", item.date) or ""
-  T.Fit(r.reason, item.reason .. "  ·  " .. (item.by or "?") .. "  ·  " .. when, 380)
   local approved = item.status == "approved"
+  local buttons = canApprove() and not approved
+  r.reason:ClearAllPoints()
+  r.reason:SetPoint("TOPLEFT", 42, -28)
+  r.reason:SetPoint("RIGHT", r, "RIGHT", buttons and -320 or -120, 0)
+  r.reason:SetText(item.reason or "")
+  local when = item.date and date("%d %b %Y", item.date) or ""
+  local meta = "Added by " .. (item.by or "?") .. (when ~= "" and ("  ·  " .. when) or "")
+  if approved and item.approvedBy then meta = meta .. "  ·  Approved by " .. item.approvedBy end
+  r.metaText = meta
+  r.meta:SetText(meta)
   if approved then
     r.badge:SetLabel("APPROVED", APPROVED)
   else
@@ -133,7 +163,7 @@ function CWC.RefreshList(key)
   u.eh:SetShown(empty)
 
   local h = u.card:GetHeight()
-  local maxRows = (h and h > 60) and math.max(1, math.floor((h - 20) / 50)) or 5
+  local maxRows = (h and h > 60) and math.max(1, math.floor((h - 20) / ROW_STEP)) or 4
   for i = 1, maxRows do
     local item = items[i]
     local r = u.rows[i]
@@ -142,7 +172,7 @@ function CWC.RefreshList(key)
         r = makeListRow(u.card)
         u.rows[i] = r
       end
-      local y = -14 - (i - 1) * 50
+      local y = -14 - (i - 1) * ROW_STEP
       r:ClearAllPoints()
       r:SetPoint("TOPLEFT", u.card, "TOPLEFT", 14, y)
       r:SetPoint("TOPRIGHT", u.card, "TOPRIGHT", -14, y)
@@ -177,11 +207,19 @@ local function cardTitle(card, text)
   return t
 end
 
-local function submitRequest(key, nameBox, reasonBox, faction)
-  local name = strtrim(nameBox:GetText() or "")
+-- Forever characters have a first and a last name, each a single word.
+local function nameFrom(firstBox, lastBox)
+  local first = (strtrim(firstBox:GetText() or "")):gsub("%s+", "")
+  local last = (strtrim(lastBox:GetText() or "")):gsub("%s+", "")
+  if first == "" or last == "" then return nil end
+  return first .. " " .. last
+end
+
+local function submitRequest(key, firstBox, lastBox, reasonBox, faction)
+  local name = nameFrom(firstBox, lastBox)
   local reason = strtrim(reasonBox:GetText() or "")
-  if name == "" then
-    CWC.Print("Enter a character name first.")
+  if not name then
+    CWC.Print("Enter the character's first and last name.")
     return
   end
   if reason == "" then
@@ -189,9 +227,11 @@ local function submitRequest(key, nameBox, reasonBox, faction)
     return
   end
   CWC.AddRequest(key, name, reason, CWC.PlayerName() or "Unknown", faction)
-  nameBox:SetText("")
+  firstBox:SetText("")
+  lastBox:SetText("")
   reasonBox:SetText("")
-  nameBox:ClearFocus()
+  firstBox:ClearFocus()
+  lastBox:ClearFocus()
   reasonBox:ClearFocus()
   CWC.RefreshList(key)
   CWC.RefreshSidebar()
@@ -223,21 +263,31 @@ local function buildListPage(key, page, heading, desc)
   form:SetHeight(140)
   cardTitle(form, "New request")
 
-  local nameLabel = T.Text(form, "bold", 11, T.c.muted)
-  nameLabel:SetPoint("TOPLEFT", 16, -48)
-  nameLabel:SetText("CHARACTER NAME")
-  local nameBox = T.Input(form, 230, 48)
-  nameBox:SetPoint("TOPLEFT", 16, -68)
+  local firstLabel = T.Text(form, "bold", 11, T.c.muted)
+  firstLabel:SetPoint("TOPLEFT", 16, -48)
+  firstLabel:SetText("FIRST NAME")
+  local firstBox = T.Input(form, 150, 24)
+  firstBox:SetPoint("TOPLEFT", 16, -68)
+
+  local lastLabel = T.Text(form, "bold", 11, T.c.muted)
+  lastLabel:SetPoint("TOPLEFT", 178, -48)
+  lastLabel:SetText("LAST NAME")
+  local lastBox = T.Input(form, 150, 24)
+  lastBox:SetPoint("TOPLEFT", 178, -68)
 
   local reasonLabel = T.Text(form, "bold", 11, T.c.muted)
-  reasonLabel:SetPoint("TOPLEFT", 266, -48)
+  reasonLabel:SetPoint("TOPLEFT", 340, -48)
   reasonLabel:SetText("REASON OR EVIDENCE")
   local reasonBox = T.Input(form, 300, 200)
-  reasonBox:SetPoint("TOPLEFT", 266, -68)
+  reasonBox:SetPoint("TOPLEFT", 340, -68)
+
+  -- Tab moves from first name, to last name, to the reason.
+  firstBox:SetScript("OnTabPressed", function() lastBox:SetFocus() end)
+  lastBox:SetScript("OnTabPressed", function() reasonBox:SetFocus() end)
+  reasonBox:SetScript("OnTabPressed", function() firstBox:SetFocus() end)
 
   local submit = T.Button(form, "Submit request", 150, function()
-    -- Every Kill on Sight target is Horde (the guild is Alliance-only), so the icon is set for that list.
-    submitRequest(key, nameBox, reasonBox, key == "kos" and "Horde" or nil)
+    submitRequest(key, firstBox, lastBox, reasonBox, LIST_FACTION[key])
   end, true)
   submit:SetPoint("BOTTOMRIGHT", -16, 14)
 
@@ -279,7 +329,7 @@ local function layoutList(key, w)
   if not u then return end
   u.desc:SetWidth(w)
   u.form:SetWidth(w)
-  u.reason:SetWidth(w - 282)
+  u.reason:SetWidth(w - 356)
 end
 
 -- Statistics

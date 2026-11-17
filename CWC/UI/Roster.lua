@@ -266,8 +266,12 @@ local function fillRow(r, rec, index)
     end
   end
 
-  setIcon(r.raceIcon, knownText(rec.race) and T.RaceIcon(rec.race) or nil)
-  T.Fit(r.race, raceText(rec), COLS[3].w - 42)
+  local raceIcon = knownText(rec.race) and T.RaceIcon(rec.race) or nil
+  local hasRaceIcon = raceIcon ~= nil and raceIcon ~= T.fallbackIcon
+  setIcon(r.raceIcon, hasRaceIcon and raceIcon or nil)
+  r.race:ClearAllPoints()
+  r.race:SetPoint("LEFT", COLS[3].x + (hasRaceIcon and 34 or 10), 0)
+  T.Fit(r.race, raceText(rec), COLS[3].w - (hasRaceIcon and 42 or 18))
 
   r.level:SetText(tostring(rec.level or "-"))
 
@@ -497,13 +501,13 @@ function CWC.BuildRosterPage(parent)
   searchBox:SetPoint("TOPLEFT", 0, 0)
   searchBox:SetTextInsets(30, 8, 0, 0)
 
-  local glass = page:CreateTexture(nil, "OVERLAY")
+  local glass = searchBox:CreateTexture(nil, "OVERLAY")
   glass:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
   glass:SetSize(14, 14)
   glass:SetPoint("LEFT", searchBox, "LEFT", 10, 0)
   glass:SetVertexColor(T.c.muted[1], T.c.muted[2], T.c.muted[3], 1)
 
-  placeholder = T.Text(page, "body", 13, T.c.muted)
+  placeholder = T.Text(searchBox, "body", 13, T.c.muted)
   placeholder:SetPoint("LEFT", searchBox, "LEFT", 30, 0)
   placeholder:SetText("Search name, class, race or profession")
   searchBox:SetScript("OnTextChanged", function(self)
