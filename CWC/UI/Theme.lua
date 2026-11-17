@@ -85,7 +85,11 @@ local measure
 function T.Fit(fs, str, maxWidth)
   str = tostring(str or "")
   if not measure then
-    measure = UIParent:CreateFontString(nil, "OVERLAY")
+    -- Measured on CWC's own invisible frame, so nothing is added to Blizzard's frames.
+    local holder = CreateFrame("Frame", nil, UIParent)
+    holder:SetSize(1, 1)
+    holder:SetAlpha(0)
+    measure = holder:CreateFontString(nil, "OVERLAY")
     measure:Show()
     measure:SetAlpha(0)
   end

@@ -334,19 +334,6 @@ local function buildHeaders()
 end
 
 -- Guild Master only: remove a character received from the guild (not one on this computer).
-StaticPopupDialogs["CWC_REMOVE_CHARACTER"] = {
-  text = "Remove %s from the CWC roster for everyone?\n\nThey'll only reappear if they log in with CWC while still in the guild.",
-  button1 = "Remove",
-  button2 = CANCEL or "Cancel",
-  OnAccept = function(self, data)
-    if data then CWC.RemoveCharacter(data) end
-  end,
-  timeout = 0,
-  whileDead = true,
-  hideOnEscape = true,
-  preferredIndex = 3,
-}
-
 local function canRemove(rec)
   if not rec or not rec.name or not rec.remote then return false end
   if CWC_Characters and CWC_Characters[rec.name] then return false end
@@ -425,7 +412,18 @@ local function buildCard(parent)
 
   c.remove = T.Button(c, "Remove", 72, function()
     local rec = c.rec
-    if rec and rec.name then StaticPopup_Show("CWC_REMOVE_CHARACTER", rec.name, nil, rec.name) end
+    if rec and rec.name then
+      local name = rec.name
+      CWC.ShowDialog({
+        title = "Remove from the roster?",
+        text = "Remove " .. name .. " from the CWC roster for everyone?\n\n"
+          .. "They'll only reappear if they log in with CWC while still in the guild.",
+        buttons = {
+          { label = "Remove", onClick = function() CWC.RemoveCharacter(name) end },
+          { label = CANCEL or "Cancel" },
+        },
+      })
+    end
   end)
   c.remove:SetPoint("BOTTOMRIGHT", -10, 6)
   c.remove:Hide()

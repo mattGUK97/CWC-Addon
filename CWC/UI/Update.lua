@@ -21,53 +21,24 @@ function CWC.UpdateAvailable()
   return latest.version
 end
 
-local function editBoxOf(popup)
-  return popup.editBox or popup.EditBox or (popup.GetEditBox and popup:GetEditBox())
-end
-
-StaticPopupDialogs["CWC_UPDATE"] = {
-  text = "|cffd8a66bCWC UPDATE REQUIRED|r\n\nVersion %s is available. You have %s.\n\n"
-    .. "Without it, guild sync can stop working, and the roster may show missing, mismatched or unreliable data.\n\n"
-    .. "Copy the link below (Ctrl+C), download the update, replace your Interface\\AddOns\\CWC folder, then /reload.",
-  button1 = OKAY or "OK",
-  hasEditBox = 1,
-  editBoxWidth = 340,
-  OnShow = function(self)
-    local eb = editBoxOf(self)
-    if eb then
-      eb:SetText(URL)
-      eb:HighlightText()
-      eb:SetFocus()
-    end
-  end,
-  EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
-  EditBoxOnEnterPressed = function(self) self:GetParent():Hide() end,
-  timeout = 0,
-  whileDead = true,
-  hideOnEscape = true,
-  preferredIndex = 3,
-}
-
-StaticPopupDialogs["CWC_DOWNLOAD_LINK"] = {
-  text = "CWC download page\n\nYou're on the newest version CWC has seen in the guild (%s). Copy the link below (Ctrl+C) to share it.",
-  button1 = OKAY or "OK",
-  hasEditBox = 1,
-  editBoxWidth = 340,
-  OnShow = StaticPopupDialogs["CWC_UPDATE"].OnShow,
-  EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
-  EditBoxOnEnterPressed = function(self) self:GetParent():Hide() end,
-  timeout = 0,
-  whileDead = true,
-  hideOnEscape = true,
-  preferredIndex = 3,
-}
-
+-- Uses CWC's own dialog (UI\Dialog.lua), not the game's StaticPopup, which addons can taint.
 function CWC.ShowUpdatePopup()
   local v = CWC.UpdateAvailable()
   if v then
-    StaticPopup_Show("CWC_UPDATE", v, CWC.version)
+    CWC.ShowDialog({
+      title = "CWC update required",
+      text = "Version " .. v .. " is available. You have " .. CWC.version .. ".\n\n"
+        .. "Without it, guild sync can stop working, and the roster may show missing, mismatched or unreliable data.\n\n"
+        .. "Copy the link below (Ctrl+C), download the update, replace your Interface\\AddOns\\CWC folder, then /reload.",
+      editText = URL,
+    })
   else
-    StaticPopup_Show("CWC_DOWNLOAD_LINK", CWC.version)
+    CWC.ShowDialog({
+      title = "CWC download page",
+      text = "You're on the newest version CWC has seen in the guild (" .. CWC.version .. ").\n\n"
+        .. "Copy the link below (Ctrl+C) to share it with a guild mate.",
+      editText = URL,
+    })
   end
 end
 
