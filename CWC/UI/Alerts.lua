@@ -5,8 +5,11 @@ local T = CWC.Theme
 -- warning sound and shows a red pop-up with their name and the reason.
 --
 -- How a player is spotted: their nameplate appearing (enemy players within about 40 yards, when enemy
--- nameplates are switched on), targeting or mousing over them, or their name in nearby combat.
--- Each player alerts at most once every two minutes, so a fight does not spam the alert.
+-- nameplates are switched on), or targeting or mousing over them. Each player alerts at most once every
+-- two minutes, so a fight does not spam the alert.
+--
+-- The combat log is not used: this version of the game reserves it for the Blizzard UI, and registering
+-- for it makes the game block the addon.
 
 local COOLDOWN = 120       -- seconds between alerts for the same player
 local SHOW_FOR = 7         -- seconds the pop-up stays on screen
@@ -100,23 +103,24 @@ local function checkName(name)
   showAlert(item, name)
 end
 
+-- The game can hide some unit details during combat ("secret" values). Those are skipped, and any
+-- unexpected error is contained so it can never interrupt play.
+local function readUnitName(unit)
+  if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsUnit(unit, "player") then return nil end
+  local name = GetUnitName(unit, true)
+  if issecretvalue and issecretvalue(name) then return nil end
+  return name
+end
+
 local function checkUnit(unit)
-  if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsUnit(unit, "player") then return end
-  checkName(GetUnitName(unit, true))
+  local ok, name = pcall(readUnitName, unit)
+  if ok and name then pcall(checkName, name) end
 end
 
 CWC.On("NAME_PLATE_UNIT_ADDED", function(unit) checkUnit(unit) end)
 CWC.On("PLAYER_TARGET_CHANGED", function() checkUnit("target") end)
 CWC.On("UPDATE_MOUSEOVER_UNIT", function() checkUnit("mouseover") end)
 
--- Nearby combat: names of players in the combat log, only while the list has entries.
-local PLAYER_FLAG = COMBATLOG_OBJECT_TYPE_PLAYER or 0x400
-CWC.On("COMBAT_LOG_EVENT_UNFILTERED", function()
-  if not enabled() or not next(approvedList()) or not CombatLogGetCurrentEventInfo then return end
-  local _, _, _, _, srcName, srcFlags, _, _, dstName, dstFlags = CombatLogGetCurrentEventInfo()
-  if srcName and srcFlags and bit.band(srcFlags, PLAYER_FLAG) > 0 then checkName(srcName) end
-  if dstName and dstFlags and bit.band(dstFlags, PLAYER_FLAG) > 0 then checkName(dstName) end
-end)
 
 -- Settings > Test: shows the alert with a sample entry, so players know what to expect.
 function CWC.TestKOSAlert()
