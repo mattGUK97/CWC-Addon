@@ -37,8 +37,9 @@ local function clean(s)
   return (tostring(s or ""):gsub("[|\n\r]", " "))
 end
 
+-- A player's full "First Last" name. Forever can send the surname after a hyphen, so it is kept, not cut.
 local function baseName(name)
-  return (tostring(name or ""):gsub("%-.*$", ""))
+  return CWC.NormalizeName(tostring(name or "")) or ""
 end
 
 -- Splits into at most n + 1 parts. The last part keeps any remaining text, so reasons can contain spaces.
@@ -109,12 +110,22 @@ end
 
 -- Returns the guild rank index of a member from the roster, or nil if they are not listed.
 local function rankOf(name)
-  local target = baseName(name)
+  local target = string.lower(baseName(name))
+  if target == "" then return nil end
+  local first = target:match("^(%S+)")
   local n = GetNumGuildMembers and GetNumGuildMembers() or 0
+  local firstMatch, firstMatches = nil, 0
   for i = 1, n do
     local full, _, rankIndex = GetGuildRosterInfo(i)
-    if full and baseName(full) == target then return rankIndex end
+    local key = full and string.lower(baseName(full)) or ""
+    if key == target then return rankIndex end
+    -- Fallback for a roster that lists first names only: accept it only when exactly one member has
+    -- that first name, so two players called "Hello" can never be confused.
+    if key ~= "" and not key:find(" ", 1, true) and key == first then
+      firstMatch, firstMatches = rankIndex, firstMatches + 1
+    end
   end
+  if firstMatches == 1 then return firstMatch end
   return nil
 end
 
@@ -533,6 +544,9 @@ CWC.On("PLAYER_LOGIN", function()
   end
   requestRoster()
   sanitizeRemote()
+  for who in pairs(CWC_Account.peerVersions or {}) do
+    if not string.find(who, " ", 1, true) then CWC_Account.peerVersions[who] = nil end
+  end
   C_Timer.After(6, function()
     if IsInGuild() then send("HELLO|" .. CWC.version) end
   end)

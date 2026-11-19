@@ -16,5 +16,6 @@ function CWC.InitStore()
   if s.defaultTab == nil then s.defaultTab = "roster" end
   if s.kosAlerts == nil then s.kosAlerts = true end
   if s.blacklistAlerts == nil then s.blacklistAlerts = true end
+  if s.kosMuteTowns == nil then s.kosMuteTowns = false end
   CWC_Characters = CWC_Characters or {}
 end

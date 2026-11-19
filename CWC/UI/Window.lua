@@ -513,7 +513,7 @@ local function settingsCheck(parent, y, label, key, extra)
   return cb
 end
 
-local ROW1_H = 226
+local ROW1_H = 256
 
 local function buildSettings(page)
   local h = T.Text(page, "heading", 20, T.c.gold)
@@ -529,11 +529,12 @@ local function buildSettings(page)
   settingsUI.kosAlerts = settingsCheck(general, -104, "Kill on Sight alerts (sound and pop-up)", "kosAlerts")
   local testAlert = T.Button(general, "Test", 56, function() CWC.TestKOSAlert() end)
   testAlert:SetPoint("TOPRIGHT", general, "TOPRIGHT", -48, -102)
-  settingsUI.blacklistAlerts = settingsCheck(general, -134, "Blacklist alerts (sound and pop-up)", "blacklistAlerts")
+  settingsUI.kosMuteTowns = settingsCheck(general, -134, "Mute Kill on Sight in neutral goblin towns", "kosMuteTowns")
+  settingsUI.blacklistAlerts = settingsCheck(general, -164, "Blacklist alerts (sound and pop-up)", "blacklistAlerts")
   local testBlacklist = T.Button(general, "Test", 56, function() CWC.TestBlacklistAlert() end)
-  testBlacklist:SetPoint("TOPRIGHT", general, "TOPRIGHT", -48, -132)
+  testBlacklist:SetPoint("TOPRIGHT", general, "TOPRIGHT", -48, -162)
   local openLabel = T.Text(general, "body", 13, T.c.muted)
-  openLabel:SetPoint("TOPLEFT", 16, -168)
+  openLabel:SetPoint("TOPLEFT", 16, -198)
   openLabel:SetText("Window opens on")
   settingsUI.openOn = T.Button(general, "", 260, function()
     local s = CWC_Account.settings
@@ -545,7 +546,7 @@ local function buildSettings(page)
     s.defaultTab = OPEN_ORDER[idx]
     CWC.RefreshSettings()
   end)
-  settingsUI.openOn:SetPoint("TOPLEFT", 16, -188)
+  settingsUI.openOn:SetPoint("TOPLEFT", 16, -218)
   settingsUI.general = general
 
   local sharing = T.Card(page)
@@ -645,6 +646,7 @@ function CWC.RefreshSettings()
   settingsUI.tooltips:SetChecked(s.showTooltips)
   settingsUI.kosAlerts:SetChecked(s.kosAlerts ~= false)
   settingsUI.blacklistAlerts:SetChecked(s.blacklistAlerts ~= false)
+  settingsUI.kosMuteTowns:SetChecked(s.kosMuteTowns == true)
   settingsUI.shareProfessions:SetChecked(s.shareProfessions)
   settingsUI.shareOnline:SetChecked(s.shareOnline)
   settingsUI.note:SetText(s.note or "")

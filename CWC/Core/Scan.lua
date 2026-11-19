@@ -83,8 +83,8 @@ end
 function CWC.PlayerName()
   local full = GetUnitName and GetUnitName("player", true) or UnitName("player")
   if not full or full == "" then return nil end
-  full = full:gsub("%-.*$", "")  -- drop any realm suffix; Forever is realmless
-  return full
+  -- Forever can give the surname after a hyphen ("First-Last"); keep it as "First Last".
+  return CWC.NormalizeName(full) or full
 end
 
 function CWC.ScanCharacter()

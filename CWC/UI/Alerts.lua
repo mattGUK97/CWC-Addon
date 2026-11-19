@@ -5,7 +5,10 @@ local T = CWC.Theme
 -- pop-up at the top of the screen.
 --
 -- Kill on Sight: the player comes into view, by their nameplate appearing (enemy players within about
--- 40 yards, when enemy nameplates are switched on), or by targeting or mousing over them.
+-- 40 yards, when enemy nameplates are switched on), or by targeting or mousing over them. Visible
+-- nameplates are re-checked every few seconds, so a target already on screen is still caught. Each
+-- target alerts once per visit: again only after being out of sight for a while. Kill on Sight is off
+-- in dungeons, raids, battlegrounds and sanctuaries, and optionally in neutral goblin towns.
 --
 -- Blacklist: only direct contact counts: they whisper you, invite you to a group, are in your group,
 -- open a trade with you, or you exchange mail. Seeing them nearby or in public chat does not alert.
@@ -14,6 +17,9 @@ local T = CWC.Theme
 
 local REBUILD_EVERY = 10  -- seconds between refreshes of the approved lists
 local SHOW_FOR = 7        -- seconds a pop-up stays on screen
+local RESCAN_EVERY = 2.5  -- seconds between re-checks of visible nameplates
+local GONE_AFTER = 20     -- seconds out of sight before a Kill on Sight target counts as having left
+local NEUTRAL_TOWNS = { ["Booty Bay"] = true, ["Gadgetzan"] = true, ["Ratchet"] = true, ["Everlook"] = true }
 
 local KINDS = {
   kos = {
@@ -45,10 +51,10 @@ local function enabled(kind)
   return s ~= nil and s[KINDS[kind].setting] ~= false and (not CWC.IsGuildMember or CWC.IsGuildMember())
 end
 
+-- Lower-case "first last". A Forever surname sent after a hyphen ("First-Last") still matches.
 local function key(name)
-  if type(name) ~= "string" or name == "" then return nil end
-  if issecretvalue and issecretvalue(name) then return nil end
-  return string.lower(strtrim((name:gsub("%-.*$", ""))))
+  local n = CWC.NormalizeName(name)
+  return n and string.lower(n) or nil
 end
 
 -- Approved entries for a list, by lower-case full name ("john doe").
@@ -145,10 +151,102 @@ local function checkUnit(kind, unit, what)
   if ok and name then safeCheck(kind, name, what) end
 end
 
--- Kill on Sight: in view.
-CWC.On("NAME_PLATE_UNIT_ADDED", function(unit) checkUnit("kos", unit, "%s is nearby") end)
-CWC.On("PLAYER_TARGET_CHANGED", function() checkUnit("kos", "target", "%s is nearby") end)
-CWC.On("UPDATE_MOUSEOVER_UNIT", function() checkUnit("kos", "mouseover", "%s is nearby") end)
+-- Kill on Sight ---------------------------------------------------------------------------------------
+
+local function inNeutralTown()
+  local sub = GetSubZoneText and GetSubZoneText() or ""
+  local mini = GetMinimapZoneText and GetMinimapZoneText() or ""
+  return NEUTRAL_TOWNS[sub] or NEUTRAL_TOWNS[mini] or false
+end
+
+-- Kill on Sight is for the open world: never in dungeons, raids, battlegrounds, arenas or sanctuaries.
+local function kosAllowedHere()
+  if IsInInstance then
+    local ok, inInstance = pcall(IsInInstance)
+    if not ok or inInstance then return false end
+  end
+  local zoneInfo = (C_PvP and C_PvP.GetZonePVPInfo) or GetZonePVPInfo
+  if zoneInfo then
+    local ok, pvpType = pcall(zoneInfo)
+    if ok and pvpType == "sanctuary" then return false end
+  end
+  if CWC_Account.settings.kosMuteTowns and inNeutralTown() then return false end
+  return true
+end
+
+local kosLastSeen = {} -- lower-case name -> GetTime() of the latest sighting
+
+local function checkKos(unit)
+  local list = approved("kos")
+  if not next(list) then return end
+  local ok, name = pcall(unitName, unit)
+  if not ok or not name then return end
+  local k = key(name)
+  local item = k and list[k]
+  if not item then return end
+  -- Only players the game marks as hostile (a wrongly listed friendly player never alerts).
+  local okH, friendly = pcall(function() return UnitIsEnemy("player", unit) == false end)
+  if okH and friendly then return end
+
+  local now = GetTime()
+  local prev = kosLastSeen[k]
+  kosLastSeen[k] = now
+  if prev and now - prev < GONE_AFTER then return end -- still around since the last alert
+  showAlert("kos", item, string.format("%s is nearby", item.name or name))
+end
+
+local function checkKosUnit(unit)
+  if not unit or not enabled("kos") or not kosAllowedHere() then return end
+  pcall(checkKos, unit)
+end
+
+-- Re-checks every visible nameplate, so targets already on screen are caught (their "appeared" event
+-- only fires once) and the "still around" timer stays fresh while they remain in view.
+local function scanNameplates()
+  if not enabled("kos") or not next(approved("kos")) or not kosAllowedHere() then return end
+  if not C_NamePlate or not C_NamePlate.GetNamePlates then return end
+  local ok, plates = pcall(C_NamePlate.GetNamePlates, false)
+  if not ok or type(plates) ~= "table" then return end
+  for _, plate in ipairs(plates) do
+    pcall(function()
+      local unit = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
+      if unit then checkKos(unit) end
+    end)
+  end
+end
+
+-- Most missed alerts come from enemy nameplates being switched off, so say so once per session.
+local warnedNameplates = false
+local function warnIfNameplatesOff()
+  if warnedNameplates or not enabled("kos") or not GetCVarBool then return end
+  local ok, off = pcall(function() return GetCVarBool("nameplateShowEnemies") == false end)
+  if ok and off then
+    warnedNameplates = true
+    CWC.Print("|cffff5050Kill on Sight alerts need enemy nameplates.|r Press V, or switch on Enemy Nameplates in the game's Options under Nameplates.")
+  end
+end
+
+CWC.On("NAME_PLATE_UNIT_ADDED", function(unit) checkKosUnit(unit) end)
+CWC.On("PLAYER_TARGET_CHANGED", function() checkKosUnit("target") end)
+CWC.On("UPDATE_MOUSEOVER_UNIT", function() checkKosUnit("mouseover") end)
+-- A player's PvP state or faction can change while they are in view.
+local function onUnitChanged(unit)
+  if type(unit) ~= "string" then return end
+  if unit == "target" or unit:find("^nameplate%d") then checkKosUnit(unit) end
+end
+CWC.On("UNIT_FLAGS", onUnitChanged)
+CWC.On("UNIT_FACTION", onUnitChanged)
+
+CWC.On("PLAYER_LOGIN", function()
+  if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(RESCAN_EVERY, scanNameplates) end
+end)
+CWC.On("PLAYER_ENTERING_WORLD", function()
+  C_Timer.After(2, function()
+    checkKosUnit("target")
+    scanNameplates()
+  end)
+  C_Timer.After(8, warnIfNameplatesOff)
+end)
 
 -- Blacklist: direct contact only.
 CWC.On("CHAT_MSG_WHISPER", function(_, sender) safeCheck("blacklist", sender, "%s whispered you") end)
