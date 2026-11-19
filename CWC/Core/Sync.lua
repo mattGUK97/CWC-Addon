@@ -273,7 +273,9 @@ CWC.ValidClass = validClass
 
 local function recordMsg(rec)
   local flag = rec.isMain == true and "1" or (rec.isMain == false and "0" or "")
-  local exp = EXP_CODE[(CWC_Account and CWC_Account.experience) or ""] or ""
+  -- A relayed guild mate keeps their own experience; this computer's characters use the account setting.
+  local expName = rec.remote and rec.experience or (CWC_Account and CWC_Account.experience)
+  local exp = EXP_CODE[expName or ""] or ""
   local msg = table.concat({
     "CH3", clean(rec.name), flag, clean(rec.mainOf), exp, clean(rec.firstName), clean(rec.lastName),
     clean(rec.classFile), clean(rec.className), clean(rec.race), tostring(rec.level or ""),
@@ -321,16 +323,28 @@ local function applyRemoval(name, by, at)
   refreshUI("roster")
 end
 
+-- After a character is accepted, its profession list (sent straight after it by the same player) is
+-- trusted too. A list for a character that was rejected as out of date is ignored.
+local pendingProfs = {}
+
 -- Updates a received character in place. Each field only changes when the new value is valid.
-local function storeRemote(msg)
+-- Newest data wins: every record carries the time its owner last scanned it, and an older copy (for
+-- example one passed on by a guild mate after the owner has since updated) never replaces a newer one.
+local function storeRemote(msg, from)
   local p = split(msg, 16) -- CH3, name, flag, mainOf, exp, first, last, classFile, className, race,
                            -- level, itemLevel, spec, guild, rank, role, scanned
   local name = p[2]
   if not isText(name) then return end
   if CWC_Characters and CWC_Characters[name] then return end -- this computer's own record wins
-  if isRemoved(name, validNumber(p[17], 1, 4102444800)) then return end
+  local scanned = validNumber(p[17], 1, 4102444800)
+  if isRemoved(name, scanned) then return end
   CWC_Account.remote = CWC_Account.remote or {}
-  local r = CWC_Account.remote[name] or {}
+  local existing = CWC_Account.remote[name]
+  if existing and existing.lastScanned and (not scanned or scanned < existing.lastScanned) then
+    pendingProfs[name] = nil
+    return
+  end
+  local r = existing or {}
   r.name = name
   local flag = p[3]
   if flag == "1" then
@@ -358,6 +372,7 @@ local function storeRemote(msg)
   r.remote = true
   r.lastSeen = time()
   CWC_Account.remote[name] = r
+  pendingProfs[name] = { from = from, at = GetTime() }
   refreshUI("roster")
 end
 
@@ -416,11 +431,14 @@ local function noteOutdated(from)
   end
 end
 
-local function storeProfs(msg)
+local function storeProfs(msg, from)
   local p = split(msg, 2)
   local name = p[2]
   local rec = CWC_Account.remote and CWC_Account.remote[name]
   if not rec then return end
+  local pend = pendingProfs[name]
+  if not pend or pend.from ~= from or GetTime() - pend.at > 30 then return end
+  pendingProfs[name] = nil
   local list = {}
   for entry in string.gmatch(p[3] or "", "[^,]+") do
     local pname, skill, max = string.match(entry, "^(.-):(%d+):(%d+)$")
@@ -430,6 +448,34 @@ local function storeProfs(msg)
   end
   rec.professions = list
   refreshUI("roster")
+end
+
+-- Catch-up state. relayClaims: newcomer -> when someone started catching them up. helloSentAt: when
+-- this computer last asked for a catch-up (saved as lastSync once a catch-up finishes).
+local relayClaims = {}
+local helloSentAt
+local RELAY_MARGIN = 3600 -- an hour's allowance for clocks that differ between computers
+
+-- Sends a newcomer the guild mates' characters this computer knows about. With a last-sync time, only
+-- characters updated since then (plus the margin) are sent, so a routine login needs few messages.
+local function relayRecordsTo(target, since)
+  local count = 0
+  for name, r in pairs(CWC_Account.remote or {}) do
+    if name ~= target and (since <= 0 or (r.lastScanned or 0) >= since - RELAY_MARGIN) then
+      send(recordMsg(r), target)
+      send(profMsg(r), target)
+      count = count + 1
+    end
+  end
+  return count
+end
+
+-- Asks online guild mates for a catch-up. full = true asks for everything, not just recent changes.
+local function sendHello(full)
+  if not IsInGuild() then return end
+  helloSentAt = time()
+  local since = full and 0 or (CWC_Account.lastSync or 0)
+  send("HELLO|" .. CWC.version .. "|" .. since)
 end
 
 local function onAddonMessage(prefix, msg, channel, sender)
@@ -453,11 +499,11 @@ local function onAddonMessage(prefix, msg, channel, sender)
     local p = split(msg, 3) -- APP, id, key, approver
     applyApproval(p[2], p[3], p[4])
   elseif string.sub(msg, 1, 4) == "CH3|" then
-    storeRemote(msg)
+    storeRemote(msg, from)
   elseif string.sub(msg, 1, 4) == "CHR|" then
     noteOutdated(from) -- old layout: ignored, so it cannot put wrong values on the roster
   elseif string.sub(msg, 1, 4) == "PRF|" then
-    storeProfs(msg)
+    storeProfs(msg, from)
   elseif string.sub(msg, 1, 4) == "DEL|" then
     local p = split(msg, 3) -- DEL, name, by, at
     local name, by, at = p[2], p[3], tonumber(p[4])
@@ -469,14 +515,33 @@ local function onAddonMessage(prefix, msg, channel, sender)
     end
   elseif string.sub(msg, 1, 4) == "VER|" then
     noteVersion(string.sub(msg, 5), from)
+  elseif string.sub(msg, 1, 4) == "RLY|" then
+    -- Someone else is already catching this player up, so this computer stands down.
+    local who = baseName(string.sub(msg, 5))
+    if who ~= "" then relayClaims[who] = GetTime() end
+  elseif string.sub(msg, 1, 4) == "RLD|" and channel == "WHISPER" then
+    -- Catch-up finished: next time, only changes after this login need sending.
+    if helloSentAt then CWC_Account.lastSync = helloSentAt end
   elseif string.sub(msg, 1, 6) == "HELLO|" then
-    noteVersion(string.sub(msg, 7), from)
+    local parts = split(msg, 2) -- HELLO, version, last sync time (from 0.9.5)
+    noteVersion(parts[2], from)
     if channel == "GUILD" then
-      -- Several online members may answer. Duplicates are ignored, so this is safe.
+      local since = tonumber(parts[3]) or 0
+      -- Everyone online sends their own characters and version (a few short messages each).
       C_Timer.After(1 + math.random() * 4, function()
-        dumpTo(from)
         sendRecords()
         send("VER|" .. CWC.version, from)
+      end)
+      -- One member catches the newcomer up on everything else: the lists, removals and other guild
+      -- mates' characters. The first to start says so on the guild channel, and the rest stand down.
+      C_Timer.After(2 + math.random() * 6, function()
+        local claimed = relayClaims[from]
+        if claimed and GetTime() - claimed < 60 then return end
+        relayClaims[from] = GetTime()
+        send("RLY|" .. clean(from))
+        dumpTo(from)
+        relayRecordsTo(from, since)
+        send("RLD|" .. CWC.version, from)
       end)
     end
   end
@@ -547,9 +612,7 @@ CWC.On("PLAYER_LOGIN", function()
   for who in pairs(CWC_Account.peerVersions or {}) do
     if not string.find(who, " ", 1, true) then CWC_Account.peerVersions[who] = nil end
   end
-  C_Timer.After(6, function()
-    if IsInGuild() then send("HELLO|" .. CWC.version) end
-  end)
+  C_Timer.After(6, function() sendHello(false) end)
 end)
 
 CWC.On("CHAT_MSG_ADDON", onAddonMessage)
@@ -579,8 +642,8 @@ function CWC.RefreshGuildData()
     return
   end
   sendRecords()
-  send("HELLO|" .. CWC.version)
-  CWC.Print("Asked online guild members to send their characters.")
+  sendHello(true)
+  CWC.Print("Asked online guild members for a full catch-up.")
 end
 
 -- Lets other files send this computer's characters to the guild (for example after a profession update).

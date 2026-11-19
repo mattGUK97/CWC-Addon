@@ -467,6 +467,17 @@ local function hideProfRow(pr)
   pr.frame:Hide()
 end
 
+-- "Updated 2 hours ago": how fresh a character's details are, from the time its owner last scanned it.
+local function timeAgo(t)
+  local d = time() - t
+  if d < 60 then return "just now" end
+  local function plural(n, unit) return n .. " " .. unit .. (n == 1 and "" or "s") .. " ago" end
+  if d < 3600 then return plural(math.floor(d / 60), "minute") end
+  if d < 86400 then return plural(math.floor(d / 3600), "hour") end
+  if d < 30 * 86400 then return plural(math.floor(d / 86400), "day") end
+  return "on " .. date("%d %b %Y", t)
+end
+
 local function fillCard(rec)
   card.rec = rec
   card.remove:SetShown(canRemove(rec))
@@ -555,7 +566,7 @@ local function fillCard(rec)
   end
 
   if rec.lastScanned then
-    card.scanned:SetText("Scanned " .. date("%d %b, %H:%M", rec.lastScanned))
+    card.scanned:SetText("Updated " .. timeAgo(rec.lastScanned))
   else
     card.scanned:SetText("")
   end

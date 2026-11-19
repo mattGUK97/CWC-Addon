@@ -589,10 +589,11 @@ local function buildSettings(page)
     { "Profession diagnostics", function() CWC.DumpSkills() end },
     { "Check guild versions", function() CWC.PrintGuildVersions() end },
     { "Copy download link", function() CWC.ShowUpdatePopup() end },
+    { "What's New", function() CWC.ShowWhatsNew() end },
   }
   for i, a in ipairs(actions) do
-    local col = (i - 1) % 4
-    local row = math.floor((i - 1) / 4)
+    local col = (i - 1) % 5
+    local row = math.floor((i - 1) / 5)
     local b = T.Button(tools, a[1], 180, a[2])
     b:SetPoint("TOPLEFT", tools, "TOPLEFT", 16 + col * 190, -44 - row * 42)
   end
@@ -892,6 +893,10 @@ local function build()
   local ver = T.Text(header, "body", 11, T.c.muted)
   ver:SetPoint("LEFT", title, "RIGHT", 10, 2)
   ver:SetText("v" .. CWC.version)
+  local whatsNew = T.Button(header, "What's new", 96, function() CWC.ShowWhatsNew() end)
+  whatsNew:SetHeight(22)
+  whatsNew.text:SetFont(T.fonts.bold, 11, "")
+  whatsNew:SetPoint("LEFT", ver, "RIGHT", 12, 0)
   local sub = T.Text(header, "body", 12, T.c.cream)
   sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 1, -3)
   sub:SetText("Private guild addon · roster, Kill on Sight and player blacklist")

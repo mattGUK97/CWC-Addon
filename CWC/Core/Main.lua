@@ -64,6 +64,8 @@ SlashCmdList["CWC"] = function(msg)
     CWC.MinimapStatus()
   elseif msg == "minimap reset" then
     CWC.MinimapReset()
+  elseif msg == "whatsnew" or msg == "news" then
+    CWC.ShowWhatsNew()
   elseif msg == "versions" then
     CWC.PrintGuildVersions()
   elseif msg == "update" then
@@ -73,6 +75,6 @@ SlashCmdList["CWC"] = function(msg)
     CWC.RefreshRoster()
     CWC.Print("Character scanned.")
   else
-    CWC.Print("Commands: /cwc (roster), /cwc setup, /cwc scan, /cwc versions, /cwc update")
+    CWC.Print("Commands: /cwc (roster), /cwc setup, /cwc scan, /cwc versions, /cwc update, /cwc whatsnew")
   end
 end
