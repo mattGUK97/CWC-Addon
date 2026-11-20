@@ -4,7 +4,7 @@ local T = CWC.Theme
 -- Wide enough for every roster column plus the character card, so nothing has to be cut off.
 local MIN_W, MIN_H = 1280, 640
 local MAX_W, MAX_H = 1700, 950
-local DEF_W, DEF_H = 1300, 760
+local DEF_W, DEF_H = 1360, 760
 local HEADER_H, FOOTER_H, SIDE_W, PAD = 96, 30, 212, 14
 local BANNER_H = 52
 local CONTENT_X = SIDE_W + PAD

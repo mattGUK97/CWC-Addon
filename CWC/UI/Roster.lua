@@ -8,17 +8,22 @@ local KV_STEP, KV_STEP_WRAPPED = 22, 36
 local PROF_STEP = 32
 local GAP = 14
 local HEAD_Y = -44
-local MIN_LIST_W = 770
+local MIN_LIST_W = 400
 
--- Column x positions are fixed; the status column takes whatever width is left.
-local COLS = {
-  { key = "name", label = "Character", x = 0, w = 200 },
-  { key = "prof", label = "Professions", x = 200, w = 128 },
-  { key = "race", label = "Race", x = 328, w = 122 },
-  { key = "level", label = "Lvl", x = 450, w = 40 },
-  { key = "status", label = "Status", x = 490, w = 170 },
-  { key = "experience", label = "Experience", x = 660, w = 0 },
+-- Roster columns: default width, the narrowest it may be made, and whether it can be hidden. Each
+-- player chooses which columns show and how wide they are (Columns button, or drag a heading's edge);
+-- that is saved on their own computer only and never shared with the guild.
+local COLUMN_DEFS = {
+  { key = "name", label = "Character", w = 200, min = 130, fixed = true },
+  { key = "prof", label = "Professions", w = 128, min = 56 },
+  { key = "race", label = "Race", w = 122, min = 80 },
+  { key = "level", label = "Lvl", w = 44, min = 36 },
+  { key = "role", label = "Role", w = 110, min = 84 },
+  { key = "status", label = "Status", w = 160, min = 90 },
+  { key = "experience", label = "Experience", w = 110, min = 90 },
 }
+local COLS, colByKey = {}, {}   -- the visible columns, with x and w, rebuilt by applyColumns()
+local naturalW = 0              -- total width the visible columns ask for
 -- No GUILD row: CWC is guild-only, so everyone on the roster is in Coping with Caffeine.
 local CARD_KEYS = { "LEVEL", "ITEM LEVEL", "SPEC", "RANK", "ROLE", "STATUS", "EXPERIENCE" }
 
@@ -88,8 +93,11 @@ end
 
 local EXP_RANK = { Master = 1, Veteran = 2, Experienced = 3, Novice = 4, Newbie = 5 }
 
+local ROLE_RANK = { ["Guild Master"] = 1, ["Officer"] = 2, ["Member"] = 3 }
+
 local function sortValue(rec, key)
   if key == "experience" then return EXP_RANK[experienceOf(rec) or ""] or 9 end
+  if key == "role" then return ROLE_RANK[rec.role or ""] or 9 end
   if key == "prof" then return profNames(rec) end
   if key == "race" then return rec.race or "" end
   if key == "level" then return rec.level or 0 end
@@ -168,6 +176,58 @@ local function showTooltip(row)
   GameTooltip:Show()
 end
 
+local function columnSettings()
+  local s = CWC_Account.settings
+  s.columns = s.columns or {}
+  return s.columns
+end
+
+-- Works out which columns show, their widths and x positions. The last visible column stretches to fill
+-- any spare space. If the columns ask for more than the list's width, the overflow is clipped and the
+-- count line suggests hiding or narrowing a column.
+local function applyColumns()
+  local saved = columnSettings()
+  for i = #COLS, 1, -1 do COLS[i] = nil end
+  for k in pairs(colByKey) do colByKey[k] = nil end
+  local x = 0
+  for _, d in ipairs(COLUMN_DEFS) do
+    local cs = saved[d.key] or {}
+    if d.fixed or cs.hidden ~= true then
+      local w = math.max(d.min, tonumber(cs.w) or d.w)
+      local col = { key = d.key, label = d.label, x = x, w = w, base = w, min = d.min }
+      table.insert(COLS, col)
+      colByKey[d.key] = col
+      x = x + w
+    end
+  end
+  naturalW = x
+  local last = COLS[#COLS]
+  if last and listW > x then last.w = last.w + (listW - x) end
+end
+
+local function place(region, key, offset)
+  local c = colByKey[key]
+  region:ClearAllPoints()
+  if c then
+    region:SetPoint("LEFT", c.x + offset, 0)
+  else
+    region:SetPoint("LEFT", -1000, 0)
+  end
+end
+
+-- Puts a row's cells under their column headings (hidden columns' cells are hidden in fillRow).
+local function positionRow(r)
+  place(r.classIcon, "name", 12)
+  place(r.name, "name", 48)
+  for i, pf in ipairs(r.profs) do place(pf, "prof", 8 + (i - 1) * 24) end
+  place(r.raceIcon, "race", 10)
+  place(r.race, "race", 34)
+  place(r.level, "level", 12)
+  place(r.role, "role", 12)
+  place(r.status, "status", 12)
+  place(r.experience, "experience", 12)
+end
+
 local function makeRow()
   local r = CreateFrame("Button", nil, child)
   r:SetSize(listW, ROW_H)
@@ -185,9 +245,7 @@ local function makeRow()
 
   r.classIcon = r:CreateTexture(nil, "ARTWORK")
   r.classIcon:SetSize(28, 28)
-  r.classIcon:SetPoint("LEFT", COLS[1].x + 12, 0)
   r.name = T.Text(r, "bold", 13)
-  r.name:SetPoint("LEFT", COLS[1].x + 48, 0)
   r.name:SetWordWrap(true)
   if r.name.SetMaxLines then r.name:SetMaxLines(2) end
 
@@ -196,27 +254,26 @@ local function makeRow()
   for i = 1, 5 do
     local pf = r:CreateTexture(nil, "ARTWORK")
     pf:SetSize(20, 20)
-    pf:SetPoint("LEFT", COLS[2].x + 8 + (i - 1) * 24, 0)
     pf:Hide()
     r.profs[i] = pf
   end
 
   r.raceIcon = r:CreateTexture(nil, "ARTWORK")
   r.raceIcon:SetSize(18, 18)
-  r.raceIcon:SetPoint("LEFT", COLS[3].x + 10, 0)
   r.race = T.Text(r, "body", 13)
-  r.race:SetPoint("LEFT", COLS[3].x + 34, 0)
 
   r.level = T.Text(r, "body", 13)
-  r.level:SetPoint("LEFT", COLS[4].x + 12, 0)
+
+  r.role = T.Text(r, "body", 12)
+  r.role:SetWordWrap(true)
+  if r.role.SetMaxLines then r.role:SetMaxLines(2) end
 
   r.status = T.Text(r, "bold", 12)
-  r.status:SetPoint("LEFT", COLS[5].x + 12, 0)
   r.status:SetWordWrap(true)
   if r.status.SetMaxLines then r.status:SetMaxLines(2) end
 
   r.experience = T.Text(r, "body", 12)
-  r.experience:SetPoint("LEFT", COLS[6].x + 12, 0)
+  positionRow(r)
 
   r.line = r:CreateTexture(nil, "BORDER")
   r.line:SetColorTexture(0.2, 0.16, 0.11, 1)
@@ -265,16 +322,19 @@ local function fillRow(r, rec, index)
   r:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -(index - 1) * ROW_H)
   r:SetWidth(listW)
   r:Show()
+  positionRow(r)
 
+  local c = colByKey
   setIcon(r.classIcon, T.ClassIcon(rec.classFile))
   r.name:SetTextColor(T.ClassColour(rec.classFile))
-  r.name:SetWidth(COLS[1].w - 58)
+  r.name:SetWidth(c.name.w - 58)
   r.name:SetText(rec.name or "?")
 
   local profs = profList(rec)
+  local fitIcons = c.prof and math.max(0, math.min(#r.profs, math.floor((c.prof.w - 8 + 4) / 24))) or 0
   for i, pf in ipairs(r.profs) do
     local p = profs[i]
-    if p then
+    if p and i <= fitIcons then
       pf:SetTexture(T.ProfIcon(p.name))
       pf:Show()
     else
@@ -282,62 +342,176 @@ local function fillRow(r, rec, index)
     end
   end
 
-  local raceIcon = knownText(rec.race) and T.RaceIcon(rec.race) or nil
-  local hasRaceIcon = raceIcon ~= nil and raceIcon ~= T.fallbackIcon
-  setIcon(r.raceIcon, hasRaceIcon and raceIcon or nil)
-  r.race:ClearAllPoints()
-  r.race:SetPoint("LEFT", COLS[3].x + (hasRaceIcon and 34 or 10), 0)
-  T.Fit(r.race, raceText(rec), COLS[3].w - (hasRaceIcon and 42 or 18))
+  if c.race then
+    local raceIcon = knownText(rec.race) and T.RaceIcon(rec.race) or nil
+    local hasRaceIcon = raceIcon ~= nil and raceIcon ~= T.fallbackIcon
+    setIcon(r.raceIcon, hasRaceIcon and raceIcon or nil)
+    r.race:ClearAllPoints()
+    r.race:SetPoint("LEFT", c.race.x + (hasRaceIcon and 34 or 10), 0)
+    r.race:SetWidth(c.race.w - (hasRaceIcon and 42 or 18))
+    r.race:SetText(raceText(rec))
+    r.race:Show()
+  else
+    r.raceIcon:Hide()
+    r.race:Hide()
+  end
 
+  r.level:SetShown(c.level ~= nil)
   r.level:SetText(tostring(rec.level or "-"))
 
-  local colour = T.c.cream
-  if rec.isMain == true then colour = T.c.gold end
-  if rec.isMain == nil then colour = T.c.muted end
-  r.status:SetTextColor(colour[1], colour[2], colour[3], 1)
-  r.status:SetWidth(COLS[5].w - 22)
-  r.status:SetText(statusText(rec))
+  r.role:SetShown(c.role ~= nil)
+  if c.role then
+    local roleColour = T.c.muted
+    if rec.role == "Guild Master" then roleColour = T.c.gold elseif rec.role == "Officer" then roleColour = T.c.cream end
+    r.role:SetTextColor(roleColour[1], roleColour[2], roleColour[3], 1)
+    r.role:SetWidth(c.role.w - 22)
+    r.role:SetText(rec.role or "-")
+  end
 
-  local exp = experienceOf(rec)
-  local ec = exp and T.c.cream or T.c.muted
-  r.experience:SetTextColor(ec[1], ec[2], ec[3], 1)
-  T.Fit(r.experience, exp or "-", math.max(60, COLS[6].w - 22))
+  r.status:SetShown(c.status ~= nil)
+  if c.status then
+    local colour = T.c.cream
+    if rec.isMain == true then colour = T.c.gold end
+    if rec.isMain == nil then colour = T.c.muted end
+    r.status:SetTextColor(colour[1], colour[2], colour[3], 1)
+    r.status:SetWidth(c.status.w - 22)
+    r.status:SetText(statusText(rec))
+  end
+
+  r.experience:SetShown(c.experience ~= nil)
+  if c.experience then
+    local exp = experienceOf(rec)
+    local ec = exp and T.c.cream or T.c.muted
+    r.experience:SetTextColor(ec[1], ec[2], ec[3], 1)
+    r.experience:SetWidth(c.experience.w - 22)
+    r.experience:SetText(exp or "-")
+  end
 
   r:UpdateStripe()
 end
 
+local headerBar
+local lastContentW = 0
+local layoutColumns -- defined below; re-lays out the headers and rows
+
 local function updateHeaders()
-  for _, col in ipairs(COLS) do
-    local b = headers[col.key]
+  for _, d in ipairs(COLUMN_DEFS) do
+    local b = headers[d.key]
     local arrow = ""
-    if sortKey == col.key then arrow = (sortDir == 1) and "  ^" or "  v" end
-    b.label:SetText(string.upper(col.label) .. arrow)
+    if sortKey == d.key then arrow = (sortDir == 1) and "  ^" or "  v" end
+    b.label:SetText(string.upper(d.label) .. arrow)
+  end
+end
+
+-- Dragging a heading's right edge changes that column's width (saved for this player only).
+local drag
+local function startDrag(key)
+  local col = colByKey[key]
+  if not col then return end
+  local x = GetCursorPosition()
+  drag = { key = key, startX = x / UIParent:GetEffectiveScale(), startW = col.base, min = col.min }
+end
+local function updateDrag()
+  if not drag then return end
+  local x = GetCursorPosition() / UIParent:GetEffectiveScale()
+  local w = math.floor(math.max(drag.min, math.min(500, drag.startW + (x - drag.startX))))
+  local saved = columnSettings()
+  saved[drag.key] = saved[drag.key] or {}
+  if saved[drag.key].w ~= w then
+    saved[drag.key].w = w
+    layoutColumns()
   end
 end
 
 local function buildHeaders()
-  for _, col in ipairs(COLS) do
-    local b = CreateFrame("Button", nil, page)
-    b:SetSize(col.w > 0 and col.w or 80, 24)
-    b:SetPoint("TOPLEFT", col.x, HEAD_Y)
+  headerBar = CreateFrame("Frame", nil, page)
+  headerBar:SetPoint("TOPLEFT", 0, HEAD_Y)
+  headerBar:SetSize(listW, 24)
+  headerBar:SetClipsChildren(true)
+  for _, d in ipairs(COLUMN_DEFS) do
+    local key = d.key
+    local b = CreateFrame("Button", nil, headerBar)
+    b:SetHeight(24)
     b.label = T.Text(b, "bold", 11, T.c.muted)
     b.label:SetPoint("LEFT", 10, 0)
     b:SetScript("OnEnter", function() b.label:SetTextColor(T.c.gold[1], T.c.gold[2], T.c.gold[3], 1) end)
     b:SetScript("OnLeave", function() b.label:SetTextColor(T.c.muted[1], T.c.muted[2], T.c.muted[3], 1) end)
     b:SetScript("OnClick", function()
-      if sortKey == col.key then
+      if sortKey == key then
         sortDir = -sortDir
       else
-        sortKey = col.key
+        sortKey = key
         sortDir = 1
       end
       CWC.RefreshRoster()
     end)
-    headers[col.key] = b
+
+    -- The drag edge: a thin strip on the heading's right side that shows a gold line on hover.
+    local grip = CreateFrame("Frame", nil, b)
+    grip:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+    grip:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
+    grip:SetWidth(8)
+    grip:EnableMouse(true)
+    grip.line = grip:CreateTexture(nil, "OVERLAY")
+    grip.line:SetColorTexture(T.c.line[1], T.c.line[2], T.c.line[3], 1)
+    grip.line:SetWidth(1)
+    grip.line:SetPoint("TOPRIGHT", -3, -5)
+    grip.line:SetPoint("BOTTOMRIGHT", -3, 5)
+    grip:SetScript("OnEnter", function(self)
+      self.line:SetColorTexture(T.c.gold[1], T.c.gold[2], T.c.gold[3], 1)
+      self.line:SetWidth(2)
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine("Drag to resize this column")
+      GameTooltip:Show()
+    end)
+    grip:SetScript("OnLeave", function(self)
+      if not drag then
+        self.line:SetColorTexture(T.c.line[1], T.c.line[2], T.c.line[3], 1)
+        self.line:SetWidth(1)
+      end
+      GameTooltip:Hide()
+    end)
+    grip:SetScript("OnMouseDown", function(self, button)
+      if button == "LeftButton" then
+        GameTooltip:Hide()
+        startDrag(key)
+        self:SetScript("OnUpdate", updateDrag)
+      end
+    end)
+    grip:SetScript("OnMouseUp", function(self)
+      self:SetScript("OnUpdate", nil)
+      drag = nil
+      self.line:SetColorTexture(T.c.line[1], T.c.line[2], T.c.line[3], 1)
+      self.line:SetWidth(1)
+    end)
+    b.grip = grip
+    headers[key] = b
   end
 end
 
--- Guild Master only: remove a character received from the guild (not one on this computer).
+-- Places the headings and rows for the current column settings and list width.
+layoutColumns = function()
+  if not page then return end
+  applyColumns()
+  headerBar:SetWidth(listW)
+  for _, d in ipairs(COLUMN_DEFS) do
+    local b = headers[d.key]
+    local col = colByKey[d.key]
+    if col then
+      b:ClearAllPoints()
+      b:SetPoint("TOPLEFT", headerBar, "TOPLEFT", col.x, 0)
+      b:SetWidth(col.w)
+      b:Show()
+      -- No drag edge on the last column: it already stretches to fill the space.
+      b.grip:SetShown(col ~= COLS[#COLS])
+    else
+      b:Hide()
+    end
+  end
+  CWC.RefreshRoster()
+  if CWC.RefreshColumnsPanel then CWC.RefreshColumnsPanel() end
+end
+
 local function canRemove(rec)
   if not rec or not rec.name or not rec.remote then return false end
   if CWC_Characters and CWC_Characters[rec.name] then return false end
@@ -575,14 +749,13 @@ end
 -- Called by the window on resize. contentW is the width available for the whole roster page.
 function CWC.LayoutRoster(contentW)
   if not page then return end
+  lastContentW = contentW
   listW = math.max(MIN_LIST_W, contentW - CARD_W - GAP)
-  COLS[6].w = listW - COLS[6].x
   scroll:SetWidth(listW)
   child:SetWidth(listW)
   headerRule:SetWidth(listW)
-  headers.experience:SetWidth(COLS[6].w)
   for _, r in ipairs(rows) do r:SetWidth(listW) end
-  CWC.RefreshRoster()
+  layoutColumns()
 end
 
 function CWC.BuildRosterPage(parent)
@@ -619,9 +792,14 @@ function CWC.BuildRosterPage(parent)
   end)
   rescan:SetPoint("TOPRIGHT", 0, 0)
 
+  local columnsBtn = T.Button(page, "Columns", 100, function() CWC.ToggleColumnsPanel() end)
+  columnsBtn:SetPoint("RIGHT", rescan, "LEFT", -8, 0)
+  page.columnsBtn = columnsBtn
+
   card = buildCard(page)
 
   buildHeaders()
+  applyColumns()
   headerRule = T.Rule(page, 0.3)
   headerRule:SetPoint("TOPLEFT", 0, HEAD_Y - 26)
   headerRule:SetHeight(1)
@@ -661,7 +839,9 @@ function CWC.RefreshRoster()
 
   local total = 0
   for _ in ipairs(CWC.AllRecords()) do total = total + 1 end
-  countText:SetText(#list .. " of " .. total .. " characters")
+  local note = ""
+  if naturalW > listW then note = "   ·   Some columns don't fit: use Columns to hide or narrow them" end
+  countText:SetText(#list .. " of " .. total .. " characters" .. note)
   emptyText:SetShown(#list == 0)
   if total == 0 then
     emptyText:SetText("Log in on a character to scan it.")
@@ -670,4 +850,102 @@ function CWC.RefreshRoster()
   end
 
   fillCard(selected)
+end
+
+-- Columns panel ---------------------------------------------------------------------------------------
+-- Opened from the Columns button on the Roster page. Choices are saved on this computer only.
+local columnsPanel
+
+local function buildColumnsPanel()
+  local p = T.Panel(page, T.c.bg, T.c.line)
+  columnsPanel = p
+  p:SetFrameStrata("DIALOG")
+  p:SetSize(330, 74 + #COLUMN_DEFS * 32 + 54)
+  p:SetPoint("TOPRIGHT", page.columnsBtn, "BOTTOMRIGHT", 0, -6)
+  p:EnableMouse(true)
+  p:Hide()
+
+  local title = T.Text(p, "heading", 15, T.c.gold)
+  title:SetPoint("TOPLEFT", 16, -14)
+  title:SetText("Roster columns")
+  local close = CreateFrame("Button", nil, p, "UIPanelCloseButton")
+  close:SetPoint("TOPRIGHT", -2, -2)
+  close:SetScript("OnClick", function() p:Hide() end)
+  local hint = T.Text(p, "body", 11, T.c.muted)
+  hint:SetPoint("TOPLEFT", 16, -38)
+  hint:SetWidth(298)
+  hint:SetText("Tick to show a column. Use - and + to change its width, or drag the edge of a column heading.")
+
+  p.rows = {}
+  for i, d in ipairs(COLUMN_DEFS) do
+    local y = -74 - (i - 1) * 32
+    local row = {}
+    row.check = T.Check(p, d.label, function(self)
+      local saved = columnSettings()
+      saved[d.key] = saved[d.key] or {}
+      saved[d.key].hidden = not self:GetChecked()
+      layoutColumns()
+    end)
+    row.check:SetPoint("TOPLEFT", 12, y)
+    if d.fixed then
+      row.check:SetChecked(true)
+      row.check:Disable()
+      row.check.label:SetText(d.label .. "  (always shown)")
+    end
+    local function nudge(delta)
+      local saved = columnSettings()
+      saved[d.key] = saved[d.key] or {}
+      local w = tonumber(saved[d.key].w) or d.w
+      saved[d.key].w = math.max(d.min, math.min(500, w + delta))
+      layoutColumns()
+    end
+    row.plus = T.Button(p, "+", 28, function() nudge(10) end)
+    row.plus:SetHeight(24)
+    row.plus:SetPoint("TOPRIGHT", -14, y)
+    row.width = T.Text(p, "body", 12, T.c.cream)
+    row.width:SetPoint("RIGHT", row.plus, "LEFT", -8, 0)
+    row.width:SetWidth(52)
+    row.width:SetJustifyH("CENTER")
+    row.minus = T.Button(p, "-", 28, function() nudge(-10) end)
+    row.minus:SetHeight(24)
+    row.minus:SetPoint("RIGHT", row.width, "LEFT", -8, 0)
+    p.rows[d.key] = row
+  end
+
+  local reset = T.Button(p, "Reset to default", 150, function()
+    CWC_Account.settings.columns = {}
+    layoutColumns()
+  end)
+  reset:SetPoint("BOTTOMLEFT", 16, 14)
+  local saveNote = T.Text(p, "body", 11, T.c.muted)
+  saveNote:SetPoint("LEFT", reset, "RIGHT", 12, 0)
+  saveNote:SetText("Saved for you only")
+end
+
+function CWC.RefreshColumnsPanel()
+  if not columnsPanel then return end
+  local saved = columnSettings()
+  for _, d in ipairs(COLUMN_DEFS) do
+    local row = columnsPanel.rows[d.key]
+    local cs = saved[d.key] or {}
+    local shown = d.fixed or cs.hidden ~= true
+    row.check:SetChecked(shown)
+    local w = math.max(d.min, tonumber(cs.w) or d.w)
+    row.width:SetText(w .. " px")
+    row.minus:SetShown(shown)
+    row.plus:SetShown(shown)
+    row.width:SetShown(shown)
+  end
+end
+
+function CWC.ToggleColumnsPanel()
+  if not page then return end
+  if not columnsPanel then buildColumnsPanel() end
+  if columnsPanel:IsShown() then
+    columnsPanel:Hide()
+  else
+    CWC.RefreshColumnsPanel()
+    columnsPanel:Show()
+    columnsPanel:Raise()
+  end
 end

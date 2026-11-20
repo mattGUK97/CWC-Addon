@@ -5,6 +5,41 @@ local ADDON, CWC = ...
 
 CWC.RELEASE_NOTES = {
   {
+    version = "0.9.6",
+    intro = "Adding someone to Kill on Sight now takes a couple of clicks, and the roster can be laid out the way you like.",
+    sections = {
+      {
+        title = "Highlights",
+        items = {
+          { text = "Add to Kill on Sight from the right-click menu:", sub = {
+            "Target a Horde player, right-click their target frame (or focus frame) and choose Add to Kill on Sight.",
+            "They're added as a request for the Guild Master or an Officer to approve, with where you spotted them as the reason.",
+            "Only shows for Horde players, and won't add someone who's already on the list.",
+          } },
+          "New Role column on the roster: Guild Master, Officer or Member.",
+        },
+      },
+      {
+        title = "New",
+        items = {
+          { text = "Choose your roster columns with the new Columns button on the Roster page:", sub = {
+            "Untick a column to hide it.",
+            "Use - and + to change a column's width, or drag the edge of a column heading.",
+            "Reset to default puts everything back.",
+            "Your choices are saved for you only and don't change anyone else's roster.",
+          } },
+        },
+      },
+      {
+        title = "Heads up",
+        items = {
+          "The CWC window opens a little wider by default to fit the new column. If a column doesn't fit, the roster tells you, so you can hide or narrow one.",
+          "This update adds a new file, so restart the game fully rather than using /reload.",
+        },
+      },
+    },
+  },
+  {
     version = "0.9.5",
     intro = "Everyone now sees the latest details for every guild mate, even people you haven't been online with. This update also adds the What's New window you're reading now.",
     sections = {

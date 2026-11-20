@@ -2,7 +2,7 @@
 ## Title: Coping with Caffeine (CWC)
 ## Notes: Guild roster and shared lists for Coping with Caffeine.
 ## Author: Coping with Caffeine
-## Version: 0.9.5
+## Version: 0.9.6
 ## SavedVariables: CWC_Account, CWC_Characters
 
 Core\Init.lua
@@ -21,3 +21,4 @@ UI\Minimap.lua
 UI\Setup.lua
 UI\Update.lua
 UI\Alerts.lua
+UI\KOSMenu.lua
