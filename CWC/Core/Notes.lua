@@ -5,6 +5,42 @@ local ADDON, CWC = ...
 
 CWC.RELEASE_NOTES = {
   {
+    version = "0.9.7",
+    intro = "The Raid page now shows the WoW: Forever raids and tracks your Onyxia attunement, and there's a new Tabard page to show off the guild colours.",
+    sections = {
+      {
+        title = "Highlights",
+        items = {
+          { text = "The Raid page is now Raids: Onyxia's Lair, Hyjal Summit and The Barrow Deeps.", sub = {
+            "Each raid shows how many players it needs, how many bosses it has and when it opens.",
+            "Onyxia's Lair shows whether you're attuned. If you're not, it shows your next step: who to talk to, where they are and what to do.",
+            "All 16 steps of the Alliance attunement are listed and ticked off as you finish them.",
+            "Guild Attunement lists who in the guild is attuned and who is working on it.",
+          } },
+          { text = "New Tabard page: the guild tabard in 3D on your own character.", sub = {
+            "Drag to turn it, scroll to zoom and right-drag to move it, or use the buttons.",
+            "Tick Tabard only to hide your other gear.",
+          } },
+        },
+      },
+      {
+        title = "Fixes",
+        items = {
+          "The character card's professions no longer run off the card when the window is short. Scroll the list to see the rest.",
+          "High Order Skyborne now has a race icon on the roster and in Statistics.",
+        },
+      },
+      {
+        title = "Heads up",
+        items = {
+          "Raid sign-ups, roles and raid nights are now organised on the guild Discord.",
+          "Guild Attunement only shows guild mates who are on this version or newer.",
+          "This update adds new files, so restart the game fully rather than using /reload.",
+        },
+      },
+    },
+  },
+  {
     version = "0.9.6",
     intro = "Adding someone to Kill on Sight now takes a couple of clicks, and the roster can be laid out the way you like.",
     sections = {

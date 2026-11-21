@@ -45,10 +45,69 @@ function T.ClassIcon(classFile)
   return T.fallbackIcon
 end
 
+-- WoW: Forever's Skyborne (High Order for the Alliance) are newer than CWC's bundled icons, so the
+-- game's own race portrait is used when the client has one, and CWC's Skyborne icon otherwise.
+local raceAtlasCache = {}
+local function gameRaceAtlas(race)
+  if raceAtlasCache[race] ~= nil then return raceAtlasCache[race] or nil end
+  local found = false
+  pcall(function()
+    if not (C_CreatureInfo and C_CreatureInfo.GetRaceInfo and C_Texture and C_Texture.GetAtlasInfo) then return end
+    local want = string.lower(race)
+    local files = {}
+    for id = 1, 200 do
+      local info = C_CreatureInfo.GetRaceInfo(id)
+      local rn = info and info.raceName and string.lower(info.raceName)
+      if rn and info.clientFileString then
+        if rn == want then
+          table.insert(files, 1, info.clientFileString)
+        elseif rn:find("skyborne", 1, true) and want:find("skyborne", 1, true) then
+          table.insert(files, info.clientFileString)
+        end
+      end
+    end
+    table.insert(files, "Skyborne")
+    table.insert(files, "HighOrderSkyborne")
+    for _, f in ipairs(files) do
+      local lf = string.lower(f)
+      for _, name in ipairs({ "raceicon128-" .. lf .. "-male", "raceicon-" .. lf .. "-male", "raceicon128-" .. lf .. "-female", "raceicon-" .. lf .. "-female" }) do
+        if C_Texture.GetAtlasInfo(name) then
+          found = name
+          return
+        end
+      end
+    end
+  end)
+  raceAtlasCache[race] = found
+  return found or nil
+end
+T.GameRaceAtlas = gameRaceAtlas
+
+-- Returns a texture path, or { atlas = name } for a game atlas.
 function T.RaceIcon(race)
   local key = slug(race)
   if RACES[key] then return MEDIA .. "race\\" .. key .. ".tga" end
+  if key:find("skyborne", 1, true) or key == "high-order" then
+    local atlas = gameRaceAtlas(race)
+    if atlas then return { atlas = atlas } end
+    return MEDIA .. "race\\skyborne.tga"
+  end
   return T.fallbackIcon
+end
+
+-- Shows an icon from T.RaceIcon (or any texture path) on a texture.
+function T.SetIcon(tex, icon)
+  if type(icon) == "table" and icon.atlas then
+    tex:SetAtlas(icon.atlas)
+    tex.cwcAtlas = true
+  else
+    tex:SetTexture(icon)
+    -- An atlas leaves its own texture coordinates behind, so they're reset for a plain texture.
+    if tex.cwcAtlas then
+      tex:SetTexCoord(0, 1, 0, 1)
+      tex.cwcAtlas = nil
+    end
+  end
 end
 
 function T.ProfIcon(name)

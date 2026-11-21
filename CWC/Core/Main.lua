@@ -70,6 +70,9 @@ SlashCmdList["CWC"] = function(msg)
     CWC.PrintGuildVersions()
   elseif msg == "update" then
     CWC.ShowUpdatePopup()
+  elseif msg == "raceicon" then
+    local atlas = CWC.Theme.GameRaceAtlas and CWC.Theme.GameRaceAtlas("High Order Skyborne")
+    CWC.Print("Skyborne icon: " .. (atlas and ("the game's own (" .. atlas .. ")") or "CWC's bundled icon (the game's wasn't found)"))
   elseif msg == "scan" then
     CWC.ScanCharacter()
     CWC.RefreshRoster()

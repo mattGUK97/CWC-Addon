@@ -36,7 +36,7 @@ local function raceText(rec)
 end
 local function setIcon(tex, path)
   if path and path ~= T.fallbackIcon then
-    tex:SetTexture(path)
+    T.SetIcon(tex, path)
     tex:Show()
   else
     tex:Hide()
@@ -261,6 +261,8 @@ local function makeRow()
   r.raceIcon = r:CreateTexture(nil, "ARTWORK")
   r.raceIcon:SetSize(18, 18)
   r.race = T.Text(r, "body", 13)
+  r.race:SetWordWrap(true) -- long races such as High Order Skyborne go onto two lines
+  if r.race.SetMaxLines then r.race:SetMaxLines(2) end
 
   r.level = T.Text(r, "body", 13)
 
@@ -570,14 +572,63 @@ local function buildCard(parent)
 
   c.profTitle = T.Text(c, "bold", 11, T.c.gold)
   c.profTitle:SetPoint("TOPLEFT", c.rule, "BOTTOMLEFT", 0, -(10 + #CARD_KEYS * KV_STEP + 8))
+  c.profTitle:SetText("PROFESSIONS")
+  -- Shown on the right of the heading when some professions are below the visible area.
+  c.profHint = T.Text(c, "body", 11, T.c.muted)
+  c.profHint:SetPoint("BOTTOMRIGHT", c.profTitle, "BOTTOMLEFT", CARD_W - 28, 0)
+  c.profHint:SetJustifyH("RIGHT")
 
-  -- Each profession is a small row frame under the PROFESSIONS heading.
+  -- Professions sit in their own scroll area between the heading and the "Updated" line, so a short
+  -- window never pushes any of them off the card: the mouse wheel scrolls through the rest.
+  local ps = CreateFrame("ScrollFrame", nil, c)
+  ps:SetPoint("TOPLEFT", c.profTitle, "BOTTOMLEFT", 0, -8)
+  ps:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -14, 34)
+  ps:SetClipsChildren(true)
+  local pc = CreateFrame("Frame", nil, ps)
+  pc:SetSize(CARD_W - 28, PROF_STEP)
+  ps:SetScrollChild(pc)
+  c.profScroll, c.profChild = ps, pc
+
+  c.profBar = c:CreateTexture(nil, "OVERLAY")
+  c.profBar:SetColorTexture(T.c.gold[1], T.c.gold[2], T.c.gold[3], 0.55)
+  c.profBar:SetWidth(3)
+  c.profBar:Hide()
+
+  local function maxScroll()
+    return math.max(0, pc:GetHeight() - ps:GetHeight())
+  end
+  function c.UpdateProfScroll()
+    local viewH, total = ps:GetHeight() or 0, c.profCount or 0
+    local range = maxScroll()
+    if ps:GetVerticalScroll() > range then ps:SetVerticalScroll(range) end
+    if range > 0 and viewH > 0 then
+      local barH = math.max(14, viewH * viewH / pc:GetHeight())
+      local y = (viewH - barH) * (ps:GetVerticalScroll() / range)
+      c.profBar:ClearAllPoints()
+      c.profBar:SetPoint("TOPLEFT", ps, "TOPRIGHT", 6, -y)
+      c.profBar:SetHeight(barH)
+      c.profBar:Show()
+      c.profHint:SetText("Scroll to see all " .. total)
+    else
+      c.profBar:Hide()
+      c.profHint:SetText("")
+    end
+  end
+  ps:EnableMouseWheel(true)
+  ps:SetScript("OnMouseWheel", function(self, delta)
+    local v = self:GetVerticalScroll() - delta * PROF_STEP
+    self:SetVerticalScroll(math.max(0, math.min(maxScroll(), v)))
+    c.UpdateProfScroll()
+  end)
+  ps:SetScript("OnSizeChanged", function() c.UpdateProfScroll() end)
+
+  -- Each profession is a small row frame inside the scroll area.
   c.profRows = {}
   for i = 1, PROF_ROWS do
     local pr = {}
-    pr.frame = CreateFrame("Frame", nil, c)
+    pr.frame = CreateFrame("Frame", nil, pc)
     pr.frame:SetSize(CARD_W - 28, 26)
-    pr.frame:SetPoint("TOPLEFT", c.profTitle, "BOTTOMLEFT", 0, -(8 + (i - 1) * PROF_STEP))
+    pr.frame:SetPoint("TOPLEFT", pc, "TOPLEFT", 0, -((i - 1) * PROF_STEP))
     pr.icon = pr.frame:CreateTexture(nil, "ARTWORK")
     pr.icon:SetSize(18, 18)
     pr.icon:SetPoint("TOPLEFT", 0, 0)
@@ -665,6 +716,8 @@ local function fillCard(rec)
     end
     for _, pr in ipairs(card.profRows) do hideProfRow(pr) end
     card.profTitle:Hide()
+    card.profHint:SetText("")
+    card.profBar:Hide()
     card.scanned:SetText("")
     card.mark:Show()
     card.empty:SetText("Log in on a character to scan it.")
@@ -705,21 +758,10 @@ local function fillCard(rec)
   card.profTitle:ClearAllPoints()
   card.profTitle:SetPoint("TOPLEFT", card.rule, "BOTTOMLEFT", 0, -(off + 8))
 
-  -- Work out how many profession rows fit above the "Scanned" line at the bottom of the card.
-  local nameLines = T.Measure(card.name, rec.name or "?") > CARD_W - 28 and 2 or 1
-  local subLines = T.Measure(card.sub, subText) > CARD_W - 28 and 2 or 1
-  local titleY = 14 + 116 + 10 + nameLines * 17 + 3 + subLines * 15 + 10 + 1 + off + 8
-  local cardH = card:GetHeight() or 0
-  local fits = PROF_ROWS
-  if cardH > 0 then
-    fits = math.floor((cardH - 34 - titleY - 14 - 8 - 26) / PROF_STEP) + 1
-    fits = math.max(0, math.min(PROF_ROWS, fits))
-  end
-
   local profs = profList(rec)
   for i, pr in ipairs(card.profRows) do
     local p = profs[i]
-    if p and i <= fits then
+    if p then
       pr.icon:SetTexture(T.ProfIcon(p.name))
       T.Fit(pr.name, p.name, CARD_W - 28 - 26 - 66)
       pr.skill:SetText(tostring(p.skill) .. " / " .. tostring(p.max))
@@ -731,13 +773,13 @@ local function fillCard(rec)
       hideProfRow(pr)
     end
   end
-  if #profs == 0 then
-    card.profTitle:SetText("PROFESSIONS (NONE RECORDED)")
-  elseif #profs > fits then
-    card.profTitle:SetText("PROFESSIONS (" .. fits .. " OF " .. #profs .. ", MAKE THE WINDOW TALLER)")
-  else
-    card.profTitle:SetText("PROFESSIONS")
-  end
+  local count = math.min(#profs, PROF_ROWS)
+  card.profCount = count
+  card.profChild:SetHeight(math.max(1, count * PROF_STEP - 6))
+  if card.lastProfRec ~= rec then card.profScroll:SetVerticalScroll(0) end
+  card.lastProfRec = rec
+  card.profTitle:SetText(#profs == 0 and "PROFESSIONS (NONE RECORDED)" or "PROFESSIONS")
+  card.UpdateProfScroll()
 
   if rec.lastScanned then
     card.scanned:SetText("Updated " .. timeAgo(rec.lastScanned))

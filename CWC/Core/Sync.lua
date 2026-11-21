@@ -293,13 +293,28 @@ local function profMsg(rec)
   return string.sub("PRF|" .. clean(rec.name) .. "|" .. table.concat(parts, ","), 1, MAX_LEN)
 end
 
+-- Attunement progress (from 0.9.7): "ATN|name|onyxia:16". Older copies ignore it.
+local function attuneMsg(rec)
+  if type(rec.attune) ~= "table" then return nil end
+  local parts = {}
+  for key, n in pairs(rec.attune) do
+    if type(key) == "string" and tonumber(n) then table.insert(parts, clean(key) .. ":" .. tostring(n)) end
+  end
+  if #parts == 0 then return nil end
+  table.sort(parts)
+  return string.sub("ATN|" .. clean(rec.name) .. "|" .. table.concat(parts, ","), 1, MAX_LEN)
+end
+
 local function sendRecords()
   if not IsInGuild() then return end
   for _, rec in pairs(CWC_Characters or {}) do
     send(recordMsg(rec))
     send(profMsg(rec))
+    local atn = attuneMsg(rec)
+    if atn then send(atn) end
   end
 end
+CWC.SendOwnRecords = sendRecords
 
 -- Guild Master removals. A removed character stays hidden for everyone until it logs in with CWC again
 -- after the removal (its scan time is then newer), which only happens while it is still in the guild.
@@ -326,6 +341,7 @@ end
 -- After a character is accepted, its profession list (sent straight after it by the same player) is
 -- trusted too. A list for a character that was rejected as out of date is ignored.
 local pendingProfs = {}
+local pendingAttune = {}
 
 -- Updates a received character in place. Each field only changes when the new value is valid.
 -- Newest data wins: every record carries the time its owner last scanned it, and an older copy (for
@@ -373,6 +389,7 @@ local function storeRemote(msg, from)
   r.lastSeen = time()
   CWC_Account.remote[name] = r
   pendingProfs[name] = { from = from, at = GetTime() }
+  pendingAttune[name] = { from = from, at = GetTime() }
   refreshUI("roster")
 end
 
@@ -450,6 +467,23 @@ local function storeProfs(msg, from)
   refreshUI("roster")
 end
 
+local function storeAttune(msg, from)
+  local p = split(msg, 2)
+  local name = p[2]
+  local rec = CWC_Account.remote and CWC_Account.remote[name]
+  if not rec then return end
+  local pend = pendingAttune[name]
+  if not pend or pend.from ~= from or GetTime() - pend.at > 30 then return end
+  pendingAttune[name] = nil
+  local list = {}
+  for entry in string.gmatch(p[3] or "", "[^,]+") do
+    local key, n = string.match(entry, "^(%a+):(%d+)$")
+    if key and tonumber(n) <= 99 then list[key] = tonumber(n) end
+  end
+  rec.attune = list
+  if CWC.RefreshRaid then CWC.RefreshRaid() end
+end
+
 -- Catch-up state. relayClaims: newcomer -> when someone started catching them up. helloSentAt: when
 -- this computer last asked for a catch-up (saved as lastSync once a catch-up finishes).
 local relayClaims = {}
@@ -464,6 +498,8 @@ local function relayRecordsTo(target, since)
     if name ~= target and (since <= 0 or (r.lastScanned or 0) >= since - RELAY_MARGIN) then
       send(recordMsg(r), target)
       send(profMsg(r), target)
+      local atn = attuneMsg(r)
+      if atn then send(atn, target) end
       count = count + 1
     end
   end
@@ -504,6 +540,8 @@ local function onAddonMessage(prefix, msg, channel, sender)
     noteOutdated(from) -- old layout: ignored, so it cannot put wrong values on the roster
   elseif string.sub(msg, 1, 4) == "PRF|" then
     storeProfs(msg, from)
+  elseif string.sub(msg, 1, 4) == "ATN|" then
+    storeAttune(msg, from)
   elseif string.sub(msg, 1, 4) == "DEL|" then
     local p = split(msg, 3) -- DEL, name, by, at
     local name, by, at = p[2], p[3], tonumber(p[4])

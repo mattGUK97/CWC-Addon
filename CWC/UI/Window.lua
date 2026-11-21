@@ -16,7 +16,8 @@ local TABS = {
   { key = "roster", label = "Roster", icon = "Interface\\Icons\\INV_Misc_GroupLooking" },
   { key = "kos", label = "Kill on Sight", icon = "Interface\\Icons\\INV_Sword_04" },
   { key = "blacklist", label = "Blacklist", icon = "Interface\\Icons\\INV_Misc_Note_01" },
-  { key = "raid", label = "Raid", icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01" },
+  { key = "raid", label = "Raids", icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01" },
+  { key = "tabard", label = "Tabard", icon = "Interface\\Icons\\INV_Shirt_GuildTabard_01" },
   { key = "stats", label = "Statistics", icon = "Interface\\Icons\\INV_Misc_Book_09" },
   { key = "settings", label = "Settings", icon = "Interface\\Icons\\INV_Gizmo_01" },
 }
@@ -412,7 +413,7 @@ local function fillColumn(col, entries)
     r:ClearAllPoints()
     r:SetPoint("TOPLEFT", col, "TOPLEFT", 8, y)
     r:SetPoint("TOPRIGHT", col, "TOPRIGHT", -8, y)
-    r.icon:SetTexture(e.icon)
+    T.SetIcon(r.icon, e.icon)
     T.Fit(r.label, e.label, cw - 80)
     r.count:SetText(tostring(e.count))
     r.bar:SetWidth(math.max(2, (cw - 16) * e.count / maxCount))
@@ -752,53 +753,11 @@ function CWC.RefreshUpdateBanner()
   relayout()
 end
 
--- Raid: a preview page describing what is planned. Nothing on it works yet.
-local function buildRaidPage(page)
-  local h = T.Text(page, "heading", 20, T.c.gold)
-  h:SetPoint("TOPLEFT", 0, 0)
-  h:SetText("Raid")
-
-  local badge = T.Badge(page, T.c.gold)
-  badge:SetSize(66, 16)
-  badge:SetPoint("LEFT", h, "RIGHT", 12, 3)
-  badge:SetLabel("PREVIEW", T.c.gold)
-
-  local d = T.Text(page, "body", 13, T.c.muted)
-  d:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -6)
-  d:SetPoint("RIGHT", page, "RIGHT", 0, 0)
-  d:SetWordWrap(true)
-  d:SetText("This section is a work in progress. Raid tools are planned for when raids become available, so nothing here works yet.")
-
-  local card = T.Card(page)
-  card:SetPoint("TOPLEFT", d, "BOTTOMLEFT", 0, -14)
-  card:SetPoint("RIGHT", page, "RIGHT", 0, 0)
-  card:SetHeight(260)
-  cardTitle(card, "What's planned")
-
-  local mark = card:CreateTexture(nil, "ARTWORK")
-  mark:SetSize(150, 150)
-  mark:SetPoint("RIGHT", -30, -10)
-  mark:SetTexture(CWC.logoPath)
-  mark:SetAlpha(0.14)
-
-  local intro = T.Text(card, "body", 14, T.c.cream)
-  intro:SetPoint("TOPLEFT", 16, -50)
-  intro:SetPoint("RIGHT", card, "RIGHT", -200, 0)
-  intro:SetWordWrap(true)
-  intro:SetText("When raids open up, this page will let you mark your interest in raiding with the guild, so officers can see who wants to raid before they plan a raid night.")
-
-  local list = T.Text(card, "body", 13, T.c.muted)
-  list:SetPoint("TOPLEFT", intro, "BOTTOMLEFT", 0, -16)
-  list:SetPoint("RIGHT", card, "RIGHT", -200, 0)
-  list:SetWordWrap(true)
-  list:SetText("•  Mark yourself as interested in raiding\n•  Choose the roles you can fill: tank, healer or damage\n•  See who else is interested, and which roles are covered\n\nDetails may change as the feature takes shape. Ideas are welcome: tell an officer what you'd like to see.")
-end
-
 local function buildSidebarFooter()
   local stats = T.Card(side)
-  stats:SetPoint("BOTTOMLEFT", 12, 84)
-  stats:SetPoint("BOTTOMRIGHT", -12, 84)
-  stats:SetHeight(126)
+  stats:SetPoint("BOTTOMLEFT", 12, 78)
+  stats:SetPoint("BOTTOMRIGHT", -12, 78)
+  stats:SetHeight(122)
   local st = T.Text(stats, "bold", 10, T.c.gold)
   st:SetPoint("TOPLEFT", 14, -12)
   st:SetText("THIS COMPUTER")
@@ -818,7 +777,7 @@ local function buildSidebarFooter()
   local me = T.Card(side)
   me:SetPoint("BOTTOMLEFT", 12, 12)
   me:SetPoint("BOTTOMRIGHT", -12, 12)
-  me:SetHeight(60)
+  me:SetHeight(58)
   side.icon = me:CreateTexture(nil, "ARTWORK")
   side.icon:SetSize(36, 36)
   side.icon:SetPoint("LEFT", 10, 0)
@@ -920,8 +879,8 @@ local function build()
   sideRule:SetPoint("BOTTOMRIGHT")
 
   -- Grouped navigation, with muted gold group headings.
-  local NAV_Y = { roster = -38, kos = -78, blacklist = -118, raid = -158, stats = -222, settings = -262 }
-  local GROUP_HEADS = { { text = "GUILD", y = -18 }, { text = "TOOLS", y = -202 } }
+  local NAV_Y = { roster = -34, kos = -70, blacklist = -106, raid = -142, tabard = -178, stats = -236, settings = -272 }
+  local GROUP_HEADS = { { text = "GUILD", y = -16 }, { text = "TOOLS", y = -218 } }
   for _, g in ipairs(GROUP_HEADS) do
     local gh = T.Text(side, "bold", 10, T.c.gold)
     gh:SetPoint("TOPLEFT", 22, g.y)
@@ -930,6 +889,7 @@ local function build()
 
   for _, tab in ipairs(TABS) do
     local b = T.NavItem(side, tab.label, tab.icon, function() selectTab(tab.key) end)
+    b:SetHeight(34)
     b:SetPoint("TOPLEFT", side, "TOPLEFT", 8, NAV_Y[tab.key])
     b:SetPoint("TOPRIGHT", side, "TOPRIGHT", -8, NAV_Y[tab.key])
     navItems[tab.key] = b
@@ -951,7 +911,8 @@ local function build()
   CWC.BuildRosterPage(pages.roster)
   buildListPage("kos", pages.kos, "Kill on Sight", "Mark enemies to hunt. Requests go to officers for approval, and approved entries show for everyone in the guild who has CWC.")
   buildListPage("blacklist", pages.blacklist, "Blacklist", "Players to avoid, such as scammers and ninja looters. Requests need officer approval.")
-  buildRaidPage(pages.raid)
+  CWC.BuildRaidPage(pages.raid)
+  CWC.BuildTabardPage(pages.tabard)
   buildStats(pages.stats)
   buildSettings(pages.settings)
 
