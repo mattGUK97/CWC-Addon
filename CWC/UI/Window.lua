@@ -91,6 +91,9 @@ local function makeListRow(parent)
   r.deny = T.Button(r, "Deny", 80, nil, false)
   r.deny:SetPoint("RIGHT", r, "RIGHT", -216, 0)
 
+  -- Guild Master and Officers: change the name or reason of any entry.
+  r.edit = T.Button(r, "Edit", 72, nil, false)
+
   -- Guild Master and Officers: remove an approved entry.
   r.remove = T.Button(r, "Remove", 96, nil, false)
   r.remove:SetPoint("RIGHT", r, "RIGHT", -112, 0)
@@ -123,7 +126,11 @@ local function fillListRow(r, item, key)
   local approved = item.status == "approved"
   local officer = canApprove()
   local reserve = 120
-  if officer then reserve = approved and 224 or 320 end
+  if officer then reserve = approved and 304 or 384 end
+  r.edit:ClearAllPoints()
+  r.edit:SetPoint("RIGHT", r, "RIGHT", approved and -216 or -304, 0)
+  r.edit:SetShown(officer)
+  r.edit:SetScript("OnClick", function() CWC.ShowEditEntry(key, item) end)
   r.reason:ClearAllPoints()
   r.reason:SetPoint("TOPLEFT", 42, -28)
   r.reason:SetPoint("RIGHT", r, "RIGHT", -reserve, 0)
@@ -131,6 +138,7 @@ local function fillListRow(r, item, key)
   local when = item.date and date("%d %b %Y", item.date) or ""
   local meta = "Added by " .. (item.by or "?") .. (when ~= "" and ("  ·  " .. when) or "")
   if approved and item.approvedBy then meta = meta .. "  ·  Approved by " .. item.approvedBy end
+  if item.editedBy then meta = meta .. "  ·  Edited by " .. item.editedBy end
   r.metaText = meta
   r.meta:SetText(meta)
   if approved then
@@ -188,29 +196,24 @@ function CWC.RefreshList(key)
   u.et:SetShown(empty)
   u.eh:SetShown(empty)
 
-  local h = u.card:GetHeight()
-  local maxRows = (h and h > 60) and math.max(1, math.floor((h - 20) / ROW_STEP)) or 4
-  for i = 1, maxRows do
-    local item = items[i]
+  local area = u.area
+  for i, item in ipairs(items) do
     local r = u.rows[i]
-    if item then
-      if not r then
-        r = makeListRow(u.card)
-        u.rows[i] = r
-      end
-      local y = -14 - (i - 1) * ROW_STEP
-      r:ClearAllPoints()
-      r:SetPoint("TOPLEFT", u.card, "TOPLEFT", 14, y)
-      r:SetPoint("TOPRIGHT", u.card, "TOPRIGHT", -14, y)
-      fillListRow(r, item, key)
-      r:Show()
-    elseif r then
-      r:Hide()
+    if not r then
+      r = makeListRow(area.child)
+      u.rows[i] = r
     end
+    local y = -(i - 1) * ROW_STEP
+    r:ClearAllPoints()
+    r:SetPoint("TOPLEFT", area.child, "TOPLEFT", 0, y)
+    r:SetPoint("TOPRIGHT", area.child, "TOPRIGHT", 0, y)
+    fillListRow(r, item, key)
+    r:Show()
   end
-  for i = maxRows + 1, #u.rows do u.rows[i]:Hide() end
-  local extra = #items - maxRows
-  u.more:SetText(extra > 0 and ("+" .. extra .. " more on this computer") or "")
+  for i = #items + 1, #u.rows do u.rows[i]:Hide() end
+  area.child:SetHeight(math.max(1, #items * ROW_STEP - (ROW_STEP - ROW_H)))
+  area.bar.Update()
+  u.more:SetText(#items == 0 and "" or (#items .. (#items == 1 and " entry" or " entries")))
 end
 
 local function selectTab(key)
@@ -342,10 +345,15 @@ local function buildListPage(key, page, heading, desc)
   eh:SetText("Requests appear here for everyone in the guild. Approved entries show once an officer approves them.")
 
   local more = T.Text(list, "body", 11, T.c.muted)
-  more:SetPoint("BOTTOMLEFT", 16, 12)
+  more:SetPoint("BOTTOMLEFT", 16, 10)
+
+  -- Every entry, in a scrolling list.
+  local area = T.ScrollArea(list, ROW_STEP)
+  area:SetPoint("TOPLEFT", 14, -14)
+  area:SetPoint("BOTTOMRIGHT", -8, 28)
 
   listUI[key] = {
-    desc = d, form = form, reason = reasonBox, card = list,
+    desc = d, form = form, reason = reasonBox, card = list, area = area,
     mark = mark, et = et, eh = eh, more = more, rows = {},
   }
 end
@@ -422,7 +430,11 @@ local function fillColumn(col, entries)
   end
 end
 
-local function buildStats(page)
+local function buildStats(outer)
+  local area = T.ScrollArea(outer, 56)
+  area:SetAllPoints(outer)
+  statsUI.area = area
+  local page = area.child
   local h = T.Text(page, "heading", 20, T.c.gold)
   h:SetPoint("TOPLEFT", 0, 0)
   h:SetText("Statistics")
@@ -442,6 +454,7 @@ end
 local function layoutStats(w)
   local page = statsUI.page
   if not page or #statsUI.tiles == 0 then return end
+  w = w - (T.SCROLLBAR_W + 6) -- room for the scroll bar
   local tw = math.floor((w - 2 * ROW_GAP) / 3)
   for i, tile in ipairs(statsUI.tiles) do
     tile:ClearAllPoints()
@@ -451,7 +464,6 @@ local function layoutStats(w)
   for i, col in ipairs(statsUI.cols) do
     col:ClearAllPoints()
     col:SetPoint("TOPLEFT", page, "TOPLEFT", (i - 1) * (tw + ROW_GAP), -126)
-    col:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", (i - 1) * (tw + ROW_GAP), 0)
     col:SetWidth(tw)
   end
   CWC.RefreshStats()
@@ -497,6 +509,19 @@ function CWC.RefreshStats()
   fillColumn(statsUI.classes, sortedEntries(classes))
   fillColumn(statsUI.races, sortedEntries(races))
   fillColumn(statsUI.profs, sortedEntries(profs))
+
+  -- The columns fill the page, and grow (with the page scrolling) when a list is longer than that.
+  local need = 0
+  for _, col in ipairs(statsUI.cols) do
+    local n = 0
+    for _, r in ipairs(col.rows) do if r:IsShown() then n = n + 1 end end
+    need = math.max(need, 44 + math.max(1, n) * 28 + 10)
+  end
+  local avail = (statsUI.area.sf:GetHeight() or 0) - 126
+  local colH = math.max(need, avail, 120)
+  for _, col in ipairs(statsUI.cols) do col:SetHeight(colH) end
+  statsUI.area.child:SetHeight(126 + colH)
+  statsUI.area.bar.Update()
 end
 
 -- Settings: two cards per row. Widths follow the window.
@@ -516,7 +541,12 @@ end
 
 local ROW1_H = 256
 
-local function buildSettings(page)
+local function buildSettings(outer)
+  -- The whole page scrolls, so a short window never pushes cards off the bottom.
+  local area = T.ScrollArea(outer, 60)
+  area:SetAllPoints(outer)
+  settingsUI.area = area
+  local page = area.child
   local h = T.Text(page, "heading", 20, T.c.gold)
   h:SetPoint("TOPLEFT", 0, 0)
   h:SetText("Settings & preferences")
@@ -592,11 +622,9 @@ local function buildSettings(page)
     { "Copy download link", function() CWC.ShowUpdatePopup() end },
     { "What's New", function() CWC.ShowWhatsNew() end },
   }
+  settingsUI.toolButtons = {}
   for i, a in ipairs(actions) do
-    local col = (i - 1) % 5
-    local row = math.floor((i - 1) / 5)
-    local b = T.Button(tools, a[1], 180, a[2])
-    b:SetPoint("TOPLEFT", tools, "TOPLEFT", 16 + col * 190, -44 - row * 42)
+    settingsUI.toolButtons[i] = T.Button(tools, a[1], 180, a[2])
   end
   settingsUI.tools = tools
 
@@ -609,10 +637,13 @@ local function buildSettings(page)
   settingsUI.about = about
 end
 
+local TOOL_MIN_W, TOOL_GAP = 170, 10
+
 local function layoutSettings(w)
   local ui = settingsUI
-  local page = pages.settings
-  if not ui.general or not page then return end
+  if not ui.general or not ui.area then return end
+  local page = ui.area.child
+  w = w - (T.SCROLLBAR_W + 6) -- room for the scroll bar
   local half = math.floor((w - ROW_GAP) / 2)
   local right = w - half - ROW_GAP
   local row2 = 40 + ROW1_H + ROW_GAP
@@ -636,9 +667,24 @@ local function layoutSettings(w)
   ui.about:SetSize(right, 170)
   ui.aboutText:SetWidth(right - 32)
 
+  -- Tool buttons fill each row and wrap onto as many rows as the width needs.
+  local inner = w - 32
+  local perRow = math.max(1, math.floor((inner + TOOL_GAP) / (TOOL_MIN_W + TOOL_GAP)))
+  local bw = math.floor((inner - (perRow - 1) * TOOL_GAP) / perRow)
+  local rows = math.ceil(#ui.toolButtons / perRow)
+  for i, b in ipairs(ui.toolButtons) do
+    local col, row = (i - 1) % perRow, math.floor((i - 1) / perRow)
+    b:SetWidth(bw)
+    b:ClearAllPoints()
+    b:SetPoint("TOPLEFT", ui.tools, "TOPLEFT", 16 + col * (bw + TOOL_GAP), -44 - row * 42)
+  end
+  local toolsH = 44 + rows * 42 + 8
   ui.tools:ClearAllPoints()
   ui.tools:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -(row2 + 170 + ROW_GAP))
-  ui.tools:SetSize(w, 150)
+  ui.tools:SetSize(w, toolsH)
+
+  page:SetHeight(row2 + 170 + ROW_GAP + toolsH + 4)
+  ui.area.bar.Update()
 end
 
 function CWC.RefreshSettings()

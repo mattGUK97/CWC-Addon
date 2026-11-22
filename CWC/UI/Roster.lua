@@ -6,7 +6,8 @@ local CARD_W = 224
 local KV_VALUE_W = CARD_W - 28 - 84   -- room for a value beside its label; longer values wrap
 local KV_STEP, KV_STEP_WRAPPED = 22, 36
 local PROF_STEP = 32
-local GAP = 14
+local rosterBar
+local GAP = 20 -- leaves room for the list's scroll bar between the list and the card
 local HEAD_Y = -44
 local MIN_LIST_W = 400
 
@@ -589,38 +590,21 @@ local function buildCard(parent)
   ps:SetScrollChild(pc)
   c.profScroll, c.profChild = ps, pc
 
-  c.profBar = c:CreateTexture(nil, "OVERLAY")
-  c.profBar:SetColorTexture(T.c.gold[1], T.c.gold[2], T.c.gold[3], 0.55)
-  c.profBar:SetWidth(3)
-  c.profBar:Hide()
+  c.profBar = T.ScrollBar(c, ps, pc, PROF_STEP)
+  c.profBar:ClearAllPoints()
+  c.profBar:SetPoint("TOPLEFT", ps, "TOPRIGHT", 2, 0)
+  c.profBar:SetPoint("BOTTOMLEFT", ps, "BOTTOMRIGHT", 2, 0)
 
-  local function maxScroll()
-    return math.max(0, pc:GetHeight() - ps:GetHeight())
-  end
   function c.UpdateProfScroll()
-    local viewH, total = ps:GetHeight() or 0, c.profCount or 0
-    local range = maxScroll()
-    if ps:GetVerticalScroll() > range then ps:SetVerticalScroll(range) end
-    if range > 0 and viewH > 0 then
-      local barH = math.max(14, viewH * viewH / pc:GetHeight())
-      local y = (viewH - barH) * (ps:GetVerticalScroll() / range)
-      c.profBar:ClearAllPoints()
-      c.profBar:SetPoint("TOPLEFT", ps, "TOPRIGHT", 6, -y)
-      c.profBar:SetHeight(barH)
-      c.profBar:Show()
-      c.profHint:SetText("Scroll to see all " .. total)
+    c.profBar.Update()
+    if c.profBar:IsShown() then
+      c.profHint:SetText("Scroll to see all " .. (c.profCount or 0))
     else
-      c.profBar:Hide()
       c.profHint:SetText("")
     end
   end
-  ps:EnableMouseWheel(true)
-  ps:SetScript("OnMouseWheel", function(self, delta)
-    local v = self:GetVerticalScroll() - delta * PROF_STEP
-    self:SetVerticalScroll(math.max(0, math.min(maxScroll(), v)))
-    c.UpdateProfScroll()
-  end)
-  ps:SetScript("OnSizeChanged", function() c.UpdateProfScroll() end)
+  ps:HookScript("OnSizeChanged", function() c.UpdateProfScroll() end)
+  pc:HookScript("OnSizeChanged", function() c.UpdateProfScroll() end)
 
   -- Each profession is a small row frame inside the scroll area.
   c.profRows = {}
@@ -854,11 +838,8 @@ function CWC.BuildRosterPage(parent)
   child = CreateFrame("Frame", nil, scroll)
   child:SetSize(listW, 10)
   scroll:SetScrollChild(child)
-  scroll:SetScript("OnMouseWheel", function(self, delta)
-    local max = math.max(0, child:GetHeight() - self:GetHeight())
-    local target = self:GetVerticalScroll() - delta * ROW_H * 2
-    self:SetVerticalScroll(math.min(max, math.max(0, target)))
-  end)
+  scroll:SetClipsChildren(true)
+  rosterBar = T.ScrollBar(page, scroll, child, ROW_H * 2)
 
   emptyText = T.Text(page, "body", 14, T.c.muted)
   emptyText:SetPoint("TOP", scroll, "TOP", 0, -40)
@@ -877,6 +858,7 @@ function CWC.RefreshRoster()
   end
   for i = #list + 1, #rows do rows[i]:Hide() end
   child:SetHeight(math.max(1, #list * ROW_H))
+  if rosterBar then rosterBar.Update() end
   updateHeaders()
 
   local total = 0

@@ -58,41 +58,19 @@ local function scrollBody(card, top)
   local child = CreateFrame("Frame", nil, sf)
   child:SetSize(1, 1)
   sf:SetScrollChild(child)
-  local bar = card:CreateTexture(nil, "OVERLAY")
-  bar:SetColorTexture(T.c.gold[1], T.c.gold[2], T.c.gold[3], 0.55)
-  bar:SetWidth(3)
-  bar:Hide()
-  local body = { sf = sf, child = child }
-  local function range() return math.max(0, child:GetHeight() - sf:GetHeight()) end
-  function body.UpdateBar()
-    local r, viewH = range(), sf:GetHeight()
-    if sf:GetVerticalScroll() > r then sf:SetVerticalScroll(r) end
-    if r > 0 and viewH > 0 then
-      local h = math.max(16, viewH * viewH / child:GetHeight())
-      bar:ClearAllPoints()
-      bar:SetPoint("TOPLEFT", sf, "TOPRIGHT", 8, -(viewH - h) * (sf:GetVerticalScroll() / r))
-      bar:SetHeight(h)
-      bar:Show()
-    else
-      bar:Hide()
-    end
-  end
+  local bar = T.ScrollBar(card, sf, child, 40)
+  local body = { sf = sf, child = child, bar = bar }
+  function body.UpdateBar() bar.Update() end
   function body.Finish(last)
     child:SetWidth(math.max(1, sf:GetWidth() or 1))
     C_Timer.After(0, function()
       local topY, bottomY = child:GetTop(), last and last:GetBottom()
       if topY and bottomY then child:SetHeight(math.max(1, topY - bottomY + 8)) end
-      body.UpdateBar()
+      bar.Update()
     end)
   end
-  sf:EnableMouseWheel(true)
-  sf:SetScript("OnMouseWheel", function(self, delta)
-    self:SetVerticalScroll(math.max(0, math.min(range(), self:GetVerticalScroll() - delta * 40)))
-    body.UpdateBar()
-  end)
-  sf:SetScript("OnSizeChanged", function(self, w)
+  sf:HookScript("OnSizeChanged", function(self, w)
     child:SetWidth(math.max(1, w or self:GetWidth()))
-    body.UpdateBar()
     if body.onResize then body.onResize() end
   end)
   return body

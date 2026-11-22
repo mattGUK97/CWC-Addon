@@ -5,6 +5,40 @@ local ADDON, CWC = ...
 
 CWC.RELEASE_NOTES = {
   {
+    version = "0.9.8",
+    intro = "Scroll bars throughout CWC, a window that copes with any size, and editable Kill on Sight and Blacklist entries.",
+    sections = {
+      {
+        title = "Highlights",
+        items = {
+          { text = "Officers and the Guild Master can now edit Kill on Sight and Blacklist entries.", sub = {
+            "Click Edit on any entry to fix a typo in the name or change the reason, without removing and re-adding it.",
+            "The change goes to everyone in the guild with CWC, and the entry shows who edited it.",
+          } },
+          { text = "Scroll bars wherever a list can grow.", sub = {
+            "Kill on Sight and Blacklist now list every entry, however many there are.",
+            "The Roster, the character card's professions, Statistics, Settings and the Raids page all scroll too.",
+            "Drag the gold bar, click above or below it, use the arrows or the mouse wheel.",
+          } },
+        },
+      },
+      {
+        title = "Fixes",
+        items = {
+          "Resizing the window no longer pushes Settings cards off the bottom. The Tools buttons rearrange to fit the width.",
+          "The Tabard page now shows your whole character by default, rather than cutting off the head and feet.",
+        },
+      },
+      {
+        title = "Heads up",
+        items = {
+          "Edits only reach guild mates on 0.9.8 or newer, so please update.",
+          "This update adds a new file, so restart the game fully rather than using /reload.",
+        },
+      },
+    },
+  },
+  {
     version = "0.9.7",
     intro = "The Raid page now shows the WoW: Forever raids and tracks your Onyxia attunement, and there's a new Tabard page to show off the guild colours.",
     sections = {

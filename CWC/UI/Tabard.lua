@@ -6,10 +6,13 @@ local T = CWC.Theme
 
 local TABARD_SLOT = 19      -- INVSLOT_TABARD
 local GUILD_TABARD = 5976   -- the Guild Tabard item, used as a preview when you aren't wearing it
-local ZOOM_MIN, ZOOM_MAX, ZOOM_STEP = -1.5, 2.6, 0.25
+-- Zoom is the camera's distance: 1 is the game's own framing, larger is further away. The default
+-- keeps the whole character in view with some room around it.
+local ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP = 1.45, 0.45, 2.6, 0.12
+local CLOSE_UP = { zoom = 0.7, y = -0.45 }
 
 local ui = {}
-local view = { facing = 0, zoom = 0, x = 0, y = 0 }
+local view = { facing = 0, zoom = ZOOM_DEFAULT, x = 0, y = 0 }
 
 local function settings() return CWC_Account.settings end
 
@@ -22,7 +25,13 @@ local function applyView()
   local m = ui.model
   if not m then return end
   pcall(m.SetFacing, m, view.facing)
-  pcall(m.SetPosition, m, view.zoom, view.x, view.y)
+  local ok = m.SetCamDistanceScale and pcall(m.SetCamDistanceScale, m, view.zoom)
+  if ok then
+    pcall(m.SetPosition, m, 0, view.x, view.y)
+  else
+    -- No camera control on this client: move the model towards or away from the camera instead.
+    pcall(m.SetPosition, m, (1 - view.zoom) * 2.5, view.x, view.y)
+  end
 end
 
 -- Puts your character on the model, then (if "Tabard only" is ticked) takes everything else off.
@@ -44,6 +53,7 @@ local function dress()
   else
     ui.status:SetText("You aren't wearing a tabard right now, so this is a preview of the Guild Tabard. Buy one from a guild tabard vendor in a capital city and equip it to show off the guild colours.")
   end
+  if ui.fitControls then C_Timer.After(0, ui.fitControls) end
 end
 
 function CWC.RefreshTabard()
@@ -54,12 +64,13 @@ function CWC.RefreshTabard()
 end
 
 local function resetView()
-  view.facing, view.zoom, view.x, view.y = 0, 0, 0, 0
+  view.facing, view.zoom, view.x, view.y = 0, ZOOM_DEFAULT, 0, 0
   applyView()
 end
 
 local function zoom(delta)
-  view.zoom = math.max(ZOOM_MIN, math.min(ZOOM_MAX, view.zoom + delta * ZOOM_STEP))
+  -- Scrolling up (delta 1) zooms in, which brings the camera closer.
+  view.zoom = math.max(ZOOM_MIN, math.min(ZOOM_MAX, view.zoom - delta * ZOOM_STEP))
   applyView()
 end
 
@@ -87,59 +98,73 @@ function CWC.BuildTabardPage(page)
   side:SetPoint("TOPRIGHT", d, "BOTTOMRIGHT", 0, -14)
   side:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
   side:SetWidth(268)
-  local st = T.Text(side, "bold", 11, T.c.gold)
+  -- The controls scroll if the window is too short to show them all.
+  local area = T.ScrollArea(side, 40)
+  area:SetPoint("TOPLEFT", 0, 0)
+  area:SetPoint("BOTTOMRIGHT", -4, 6)
+  local sc = area.child
+  local st = T.Text(sc, "bold", 11, T.c.gold)
   st:SetPoint("TOPLEFT", 16, -14)
   st:SetText("VIEW")
-  local sr = T.Rule(side, 0.3)
+  local sr = T.Rule(sc, 0.3)
   sr:SetPoint("TOPLEFT", 16, -34)
   sr:SetPoint("TOPRIGHT", -16, -34)
 
-  local only = T.Check(side, "Tabard only (hide my other gear)", function(self)
+  local only = T.Check(sc, "Tabard only (hide my other gear)", function(self)
     settings().tabardOnly = self:GetChecked() and true or false
     CWC.RefreshTabard()
   end)
   only:SetPoint("TOPLEFT", 12, -46)
   only:SetChecked(s.tabardOnly ~= false)
   if only.label then
-    only.label:SetPoint("RIGHT", side, "RIGHT", -14, 0)
+    only.label:SetPoint("RIGHT", sc, "RIGHT", -14, 0)
     only.label:SetWordWrap(true)
   end
 
-  local BW, GAP = 113, 10
-  local left = controlButton(side, "Turn left", BW, function() view.facing = view.facing + math.pi / 8; applyView() end)
+  local BW, GAP = 106, 10
+  local left = controlButton(sc, "Turn left", BW, function() view.facing = view.facing + math.pi / 8; applyView() end)
   left:SetPoint("TOPLEFT", 16, -86)
-  local right = controlButton(side, "Turn right", BW, function() view.facing = view.facing - math.pi / 8; applyView() end)
+  local right = controlButton(sc, "Turn right", BW, function() view.facing = view.facing - math.pi / 8; applyView() end)
   right:SetPoint("LEFT", left, "RIGHT", GAP, 0)
-  local zin = controlButton(side, "Zoom in", BW, function() zoom(1) end)
+  local zin = controlButton(sc, "Zoom in", BW, function() zoom(1) end)
   zin:SetPoint("TOPLEFT", left, "BOTTOMLEFT", 0, -GAP)
-  local zout = controlButton(side, "Zoom out", BW, function() zoom(-1) end)
+  local zout = controlButton(sc, "Zoom out", BW, function() zoom(-1) end)
   zout:SetPoint("LEFT", zin, "RIGHT", GAP, 0)
-  local front = controlButton(side, "Front", BW, function() view.facing = 0; applyView() end)
+  local front = controlButton(sc, "Front", BW, function() view.facing = 0; applyView() end)
   front:SetPoint("TOPLEFT", zin, "BOTTOMLEFT", 0, -GAP)
-  local back = controlButton(side, "Back", BW, function() view.facing = math.pi; applyView() end)
+  local back = controlButton(sc, "Back", BW, function() view.facing = math.pi; applyView() end)
   back:SetPoint("LEFT", front, "RIGHT", GAP, 0)
-  local close = controlButton(side, "Close-up", BW, function()
-    view.facing, view.zoom, view.x, view.y = 0, 1.5, 0, 0.2
+  local close = controlButton(sc, "Close-up", BW, function()
+    view.facing, view.zoom, view.x, view.y = 0, CLOSE_UP.zoom, 0, CLOSE_UP.y
     applyView()
   end)
   close:SetPoint("TOPLEFT", front, "BOTTOMLEFT", 0, -GAP)
-  local reset = controlButton(side, "Reset", BW, function() resetView() end)
+  local reset = controlButton(sc, "Reset", BW, function() resetView() end)
   reset:SetPoint("LEFT", close, "RIGHT", GAP, 0)
 
-  local ht = T.Text(side, "bold", 11, T.c.gold)
+  local ht = T.Text(sc, "bold", 11, T.c.gold)
   ht:SetPoint("TOPLEFT", close, "BOTTOMLEFT", 0, -22)
   ht:SetText("MOUSE")
-  local help = T.Text(side, "body", 12, T.c.cream)
+  local help = T.Text(sc, "body", 12, T.c.cream)
   help:SetPoint("TOPLEFT", ht, "BOTTOMLEFT", 0, -6)
-  help:SetPoint("RIGHT", side, "RIGHT", -16, 0)
+  help:SetPoint("RIGHT", sc, "RIGHT", -16, 0)
   help:SetWordWrap(true)
   help:SetSpacing(3)
   help:SetText("Drag: turn the model\nScroll: zoom in and out\nRight-drag: move the model")
 
-  ui.status = T.Text(side, "body", 12, T.c.muted)
+  ui.status = T.Text(sc, "body", 12, T.c.muted)
   ui.status:SetPoint("TOPLEFT", help, "BOTTOMLEFT", 0, -16)
-  ui.status:SetPoint("RIGHT", side, "RIGHT", -16, 0)
+  ui.status:SetPoint("RIGHT", sc, "RIGHT", -16, 0)
   ui.status:SetWordWrap(true)
+
+  -- The scroll height follows the last line of text, once it has been laid out.
+  local function fitControls()
+    local top, bottom = sc:GetTop(), ui.status:GetBottom()
+    if top and bottom then sc:SetHeight(math.max(1, top - bottom + 16)) end
+    area.bar.Update()
+  end
+  ui.fitControls = fitControls
+  area.sf:HookScript("OnSizeChanged", function() C_Timer.After(0, fitControls) end)
 
   -- The model, on a dark stage with a soft gold glow behind it.
   local stage = T.Card(page)
@@ -183,10 +208,6 @@ function CWC.BuildTabardPage(page)
   if m.HasScript and m:HasScript("OnModelLoaded") then
     m:SetScript("OnModelLoaded", function() applyView() end)
   end
-
-  local hint = T.Text(stage, "body", 11, T.c.muted)
-  hint:SetPoint("BOTTOM", stage, "BOTTOM", 0, 12)
-  hint:SetText("Drag to turn  ·  Scroll to zoom  ·  Right-drag to move")
 
   page:SetScript("OnShow", function() CWC.RefreshTabard() end)
 end

@@ -351,3 +351,146 @@ function T.NavItem(parent, label, icon, onClick)
   if onClick then b:SetScript("OnClick", onClick) end
   return b
 end
+
+-- CWC's scroll bar: a thin dark track with a gold thumb, and small arrows at each end. Drag the thumb,
+-- click the track to jump a page, use the arrows, or scroll with the mouse wheel. It hides itself when
+-- everything fits. sf is a ScrollFrame and child its scroll child; step is how far one wheel notch moves.
+T.SCROLLBAR_W = 10
+function T.ScrollBar(parent, sf, child, step)
+  step = step or 40
+  local bar = CreateFrame("Frame", nil, parent)
+  bar:SetWidth(T.SCROLLBAR_W)
+  bar:SetPoint("TOPLEFT", sf, "TOPRIGHT", 4, 0)
+  bar:SetPoint("BOTTOMLEFT", sf, "BOTTOMRIGHT", 4, 0)
+  bar:SetFrameLevel(sf:GetFrameLevel() + 5)
+
+  local function arrow(up)
+    local b = CreateFrame("Button", nil, bar)
+    b:SetSize(T.SCROLLBAR_W, 12)
+    b:SetPoint(up and "TOP" or "BOTTOM", bar, up and "TOP" or "BOTTOM", 0, 0)
+    local t = b:CreateTexture(nil, "ARTWORK")
+    t:SetTexture(up and "Interface\\Buttons\\Arrow-Up-Up" or "Interface\\Buttons\\Arrow-Down-Up")
+    t:SetSize(14, 14)
+    t:SetPoint("CENTER", 0, up and -2 or 3)
+    t:SetVertexColor(T.c.gold[1], T.c.gold[2], T.c.gold[3], 0.75)
+    b:SetScript("OnEnter", function() t:SetVertexColor(T.c.gold[1], T.c.gold[2], T.c.gold[3], 1) end)
+    b:SetScript("OnLeave", function() t:SetVertexColor(T.c.gold[1], T.c.gold[2], T.c.gold[3], 0.75) end)
+    return b
+  end
+  local up, down = arrow(true), arrow(false)
+
+  local track = CreateFrame("Frame", nil, bar)
+  track:SetPoint("TOPLEFT", up, "BOTTOMLEFT", 0, -2)
+  track:SetPoint("BOTTOMRIGHT", down, "TOPRIGHT", 0, 2)
+  track:EnableMouse(true)
+  local tbg = track:CreateTexture(nil, "BACKGROUND")
+  tbg:SetAllPoints()
+  tbg:SetColorTexture(0, 0, 0, 0.45)
+  local edge = track:CreateTexture(nil, "BORDER")
+  edge:SetPoint("TOPLEFT", -1, 1)
+  edge:SetPoint("BOTTOMRIGHT", 1, -1)
+  edge:SetColorTexture(T.c.line[1], T.c.line[2], T.c.line[3], 0.6)
+  local inner = track:CreateTexture(nil, "BORDER", nil, 1)
+  inner:SetAllPoints()
+  inner:SetColorTexture(0.03, 0.025, 0.02, 1)
+
+  local thumb = CreateFrame("Frame", nil, track)
+  thumb:SetWidth(T.SCROLLBAR_W - 2)
+  thumb:EnableMouse(true)
+  local tt = thumb:CreateTexture(nil, "ARTWORK")
+  tt:SetAllPoints()
+  local function tint(a) tt:SetColorTexture(T.c.gold[1], T.c.gold[2], T.c.gold[3], a) end
+  tint(0.6)
+
+  local function range() return math.max(0, (child:GetHeight() or 0) - (sf:GetHeight() or 0)) end
+  local updating = false
+  function bar.Update()
+    if updating then return end
+    updating = true
+    local r = range()
+    local cur = sf:GetVerticalScroll() or 0
+    if cur > r then sf:SetVerticalScroll(r); cur = r end
+    if r < 1 then
+      if cur ~= 0 then sf:SetVerticalScroll(0) end
+      bar:Hide()
+    else
+      bar:Show()
+      local trackH = track:GetHeight() or 0
+      local viewH, total = sf:GetHeight() or 1, child:GetHeight() or 1
+      local th = math.max(24, math.min(trackH, trackH * viewH / total))
+      thumb:SetHeight(th)
+      thumb:ClearAllPoints()
+      thumb:SetPoint("TOP", track, "TOP", 0, -(trackH - th) * (cur / r))
+    end
+    updating = false
+  end
+  function bar.ScrollTo(v)
+    sf:SetVerticalScroll(math.max(0, math.min(range(), v)))
+    bar.Update()
+  end
+  function bar.ScrollBy(d) bar.ScrollTo((sf:GetVerticalScroll() or 0) + d) end
+
+  up:SetScript("OnClick", function() bar.ScrollBy(-step) end)
+  down:SetScript("OnClick", function() bar.ScrollBy(step) end)
+  sf:EnableMouseWheel(true)
+  sf:SetScript("OnMouseWheel", function(_, delta) bar.ScrollBy(-delta * step) end)
+
+  -- Click above or below the thumb to move a page.
+  track:SetScript("OnMouseDown", function()
+    local _, y = GetCursorPosition()
+    y = y / track:GetEffectiveScale()
+    local mid = (thumb:GetTop() + thumb:GetBottom()) / 2
+    bar.ScrollBy((y > mid and -1 or 1) * (sf:GetHeight() or 100) * 0.9)
+  end)
+
+  local dragY, dragStart
+  thumb:SetScript("OnEnter", function() if not dragY then tint(0.85) end end)
+  thumb:SetScript("OnLeave", function() if not dragY then tint(0.6) end end)
+  thumb:SetScript("OnMouseDown", function(self)
+    local _, y = GetCursorPosition()
+    dragY, dragStart = y / self:GetEffectiveScale(), sf:GetVerticalScroll() or 0
+    tint(1)
+  end)
+  thumb:SetScript("OnMouseUp", function(self)
+    dragY = nil
+    tint(self:IsMouseOver() and 0.85 or 0.6)
+  end)
+  thumb:SetScript("OnHide", function() dragY = nil; tint(0.6) end)
+  thumb:SetScript("OnUpdate", function(self)
+    if not dragY then return end
+    local _, y = GetCursorPosition()
+    y = y / self:GetEffectiveScale()
+    local movable = (track:GetHeight() or 0) - (self:GetHeight() or 0)
+    if movable <= 0 then return end
+    bar.ScrollTo(dragStart + (dragY - y) * range() / movable)
+  end)
+
+  sf:HookScript("OnSizeChanged", function() bar.Update() end)
+  sf:HookScript("OnScrollRangeChanged", function() bar.Update() end)
+  child:HookScript("OnSizeChanged", function() bar.Update() end)
+  track:SetScript("OnSizeChanged", function() bar.Update() end)
+  bar:Hide()
+  return bar
+end
+
+-- A scrolling area with a CWC scroll bar. Put content on area.child, laid out from its top; set the
+-- child's height to the content height and the bar appears when it is taller than the area.
+-- The bar sits inside the area's right edge, in a gutter the content leaves free.
+function T.ScrollArea(parent, step)
+  local holder = CreateFrame("Frame", nil, parent)
+  local sf = CreateFrame("ScrollFrame", nil, holder)
+  sf:SetPoint("TOPLEFT")
+  sf:SetPoint("BOTTOMRIGHT", -(T.SCROLLBAR_W + 6), 0)
+  sf:SetClipsChildren(true)
+  local child = CreateFrame("Frame", nil, sf)
+  child:SetSize(1, 1)
+  sf:SetScrollChild(child)
+  local bar = T.ScrollBar(holder, sf, child, step)
+  sf:HookScript("OnSizeChanged", function(self, w)
+    child:SetWidth(math.max(1, w or self:GetWidth() or 1))
+  end)
+  holder.sf, holder.child, holder.bar = sf, child, bar
+  -- The content width: the area's width less the scroll bar gutter.
+  function holder.InnerWidth() return math.max(1, (holder:GetWidth() or 0) - (T.SCROLLBAR_W + 6)) end
+  return holder
+end

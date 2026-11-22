@@ -208,6 +208,32 @@ local function applyApproval(id, key, approver)
   end)
 end
 
+-- An entry's name or reason changed by the Guild Master or an Officer. The newest edit wins.
+-- "EDT|id|key|by|at|name|reason"
+local function encodeEdit(key, item)
+  local head = table.concat({
+    "EDT", clean(item.id), key, clean(item.editedBy), tostring(item.editedAt or 0), clean(item.name), "",
+  }, "|")
+  return head .. string.sub(clean(item.reason), 1, math.max(0, MAX_LEN - #head))
+end
+
+local function applyEdit(id, key, by, at, name, reason)
+  if not KEYS[key] then return end
+  at = tonumber(at)
+  name = baseName(name)
+  if not at or name == "" or not name:find(" ", 1, true) or not reason or reason == "" then return end
+  whenRankKnown(by, 5, function(r)
+    if r > 1 then return end
+    local item = findById(CWC.RequestStore(key), id)
+    if not item or (item.editedAt or 0) >= at then return end
+    item.name = name
+    item.reason = reason
+    item.editedAt = at
+    item.editedBy = by
+    refreshUI(key)
+  end)
+end
+
 -- Clears the guild records this computer has received, so they can be rebuilt from scratch.
 function CWC.ClearRemote()
   CWC_Account.remote = {}
@@ -230,6 +256,9 @@ local function dumpTo(target)
       end
       if item.status == "removed" and item.removedBy then
         send("RMV|" .. clean(item.id) .. "|" .. key .. "|" .. clean(item.removedBy), target)
+      end
+      if item.editedAt and item.editedBy and item.status ~= "removed" and item.status ~= "denied" then
+        send(encodeEdit(key, item), target)
       end
     end
   end
@@ -534,6 +563,9 @@ local function onAddonMessage(prefix, msg, channel, sender)
   elseif string.sub(msg, 1, 4) == "APP|" then
     local p = split(msg, 3) -- APP, id, key, approver
     applyApproval(p[2], p[3], p[4])
+  elseif string.sub(msg, 1, 4) == "EDT|" then
+    local p = split(msg, 6) -- EDT, id, key, by, at, name, reason
+    applyEdit(p[2], p[3], p[4], p[5], p[6], p[7])
   elseif string.sub(msg, 1, 4) == "CH3|" then
     storeRemote(msg, from)
   elseif string.sub(msg, 1, 4) == "CHR|" then
@@ -629,6 +661,23 @@ function CWC.RemoveRequest(key, id, by)
   item.status = "removed"
   item.removedBy = by
   send("RMV|" .. clean(id) .. "|" .. key .. "|" .. clean(by))
+  return true
+end
+
+-- Guild Master or Officer: changes the name or reason of an entry for everyone.
+function CWC.EditRequest(key, id, name, reason, by)
+  local me = CWC_Characters and CWC_Characters[CWC.PlayerName() or ""]
+  if not me or not (me.role == "Guild Master" or me.role == "Officer") then
+    CWC.Print("Only the Guild Master and Officers can edit entries.")
+    return false
+  end
+  local item = findById(CWC.RequestStore(key), id)
+  if not item then return false end
+  item.name = name
+  item.reason = reason
+  item.editedAt = math.max(time(), (item.editedAt or 0) + 1)
+  item.editedBy = by
+  send(encodeEdit(key, item))
   return true
 end
 
